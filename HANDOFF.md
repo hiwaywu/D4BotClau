@@ -1,7 +1,7 @@
 # HANDOFF — d4-visual-bot
 
 **Status:** full Helltide cycle built: town + stash → Warplan teleport → follow recorded route → farm → repeat. First full live round worked (2026-10-24 01:09). Since then, built offline (cloud session, no game): path planning around walls, idle reset, and an optional YOLO detector pipeline - none of it run live yet. Not safe to leave unattended.
-**Next session: start at section 0 below.**
+**Next session: start at section 0 below** (step 1 done on the new PC; long soak test moved to the very end by user decision).
 **Last updated:** 2026-10-24
 **Repo:** https://github.com/hiwaywu/D4BotClau (private). Push after every change; update this file in the same commit.
 **Project folder:** `C:\AI STUFF\Claude\Diablo4\d4-visual-bot` (the old copy in `OneDrive\Documents\deepseek-harness\default-workspace\d4-visual-bot` is stale)
@@ -27,6 +27,8 @@ Needs: Warplan next activity = Helltide, Subo in the party, 2560x1440 windowed, 
 **For Claude:** the user said "I have no idea what to do; when I get to my home PC, tell me exactly what to do". Walk them through the steps below **one step at a time**: give the exact command, say what they should see, wait for them to report (paste the console output, `logs\session.log` lines, or screenshots), and fix problems before moving on. Do not dump the whole list at once. Commands run in PowerShell in the project folder. After each step, record the result in this file (section 3 style) and push.
 
 All new work is merged into **`main`** (2026-10-24). The user now works locally on the home PC: commit and push to `main` there.
+
+**User decision (2026-10-24): priority is getting it running and adding features, not long soak tests.** Do NOT require a 30+ minute test before moving on. Short runs to check each change are enough; the one long test (1h+ cycle) happens at the very end, after everything below is built (see "Roadmap" after Step 7).
 
 ### Step 1 - Get the new code (2 min)
 **DONE 2026-10-24 on this PC:** fresh clone at `C:\AI\Claude\D4BotClau` (not `C:\AI STUFF\...`; use this folder in all commands below), already at latest `main`. `.\setup.cmd` -> "Setup complete." on Python 3.14.7 (numpy 2.5.4, opencv 4.14.0.94, mss 10.2.0). `pytest`: all pass, 15 skipped (no `data/` screenshots on this PC).
@@ -58,12 +60,12 @@ Expect: same hunting as before; when a pack is behind a wall/red edge it should 
 - `data\path1\overlay_*.jpg`: green lines on the minimap = a planned route to a pack behind a wall.
 If it walks into walls more than before: set `nav: path_planning: false` in `config.yaml` and compare, then tell Claude what you saw.
 
-### Step 4 - Full cycle, at least 35 minutes (watched)
-Still untested live: the 30-minute stash trip and coming back, a Helltide ending, the new idle reset.
+### Step 4 - Use the full cycle (as long as you like, watched)
+This is the normal way to run it. No minimum length - stop with F8 whenever.
 ```powershell
 .\run.cmd -Cycle -EnableInput -IAcceptBanRisk -MaxHours 1
 ```
-Expect, in `logs\session.log`: `Cycle 1: farming` ... `farm ended: stash trip (30 min)` -> town -> teleport -> `Cycle 2: farming`. If nothing gets fought for 4 minutes it should log `idle reset (no fights or loot for 4 min)` and redo town -> teleport -> route (change with `-IdleResetMin 6`, `0` = off).
+Expect, in `logs\session.log`: town + stash -> teleport -> route located -> `Cycle 1: farming`. If it runs long enough: `farm ended: stash trip (30 min)` -> town -> teleport -> `Cycle 2: farming`. If nothing gets fought for 4 minutes: `idle reset (no fights or loot for 4 min)` -> town -> teleport -> route (change with `-IdleResetMin 6`, `0` = off). Note anything odd and tell Claude; fix it, then carry on.
 If it stops with "no recorded route for this town": record that town now (Step 4b), then rerun.
 
 ### Step 4b - Record a route for a new Helltide town (when it comes up, 3 min, no input)
@@ -74,7 +76,7 @@ Stand on the town's waypoint, then:
 Click into the game, walk from the waypoint to a big open area of the Helltide, press F8 to save. Then commit + push `routes\<townname>\`.
 
 ### Step 5 - YOLO, part 1: install + collect frames (one-time install ~10 min, then just play)
-Only after steps 3-4 look OK. Nothing here sends input.
+Can start any time (even before Step 3); it is just playing with a recorder on. Nothing here sends input.
 ```powershell
 .\setup.cmd -Yolo                       # training tools; CUDA torch if an NVIDIA GPU is found; onnxruntime-directml
 .\run.cmd -Collect helltide             # then just play normally; F8 when done
@@ -97,6 +99,13 @@ Expect at the end: `Validation mAP50 ...` and a precision/recall line per class,
 .\run.cmd -MaxSeconds 60 -Snapshots data\yolo1       # dry run, no input: check boxes on data\yolo1\overlay_*.jpg
 ```
 Only if the boxes sit on real monsters (and not on fire/scenery/tiger): set `detector: aim: true` and do a 5-minute live run like Step 3. Then: collect more where it was wrong, `-Label` again (frames now come pre-boxed by the model; just fix them), `-Train` again.
+
+### Roadmap after the steps (build in this order, short live check after each)
+1. **Auto-revive after death** - today a death stops the run. Needs the death screen ("Revive at Checkpoint" button) -> click it -> back to town or the Helltide -> continue the cycle. Ask the user for a screenshot of the death screen (`.\run.cmd -Snap death`, F9) if `data\` has none on this PC.
+2. **Potions by real health** - today a blind 8s timer. Needs low-health screenshots (the globe is purple/cosmetic on this character).
+3. **Green spawner icons** (user idea, HANDOFF "Next ideas") - walk to one, interact, fight around it.
+4. **The app** (user wants this at the end): a window with Start/Stop, live status (state, packs, loot, run time) and a settings screen that edits `config.yaml` - attack distance (`combat.attack_range_px`, `fight_radius_px`), skill keys/timers, potions, loot on/off, idle reset, path planning, YOLO on/off. Plus **class profiles**: one saved settings set per class/character (Warlock = demon form on; other classes = form gate off, their own skills and attack range). Simple Windows launcher instead of `run.cmd`.
+5. **Final long test** - only now: a 1-2 hour `-Cycle` covering stash trips, a Helltide ending + waiting for the next one, idle resets, a death + revive. Fix what it finds.
 
 ### Ongoing
 - After every step: tell Claude the result; Claude updates this file and pushes.
