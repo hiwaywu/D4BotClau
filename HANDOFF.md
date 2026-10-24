@@ -29,6 +29,8 @@ Needs: Warplan next activity = Helltide, Subo in the party, 2560x1440 windowed, 
 All new work is merged into **`main`** (2026-10-24). The user now works locally on the home PC: commit and push to `main` there.
 
 ### Step 1 - Get the new code (2 min)
+**DONE 2026-10-24 on this PC:** fresh clone at `C:\AI\Claude\D4BotClau` (not `C:\AI STUFF\...`; use this folder in all commands below), already at latest `main`. `.\setup.cmd` -> "Setup complete." on Python 3.14.7 (numpy 2.5.4, opencv 4.14.0.94, mss 10.2.0). `pytest`: all pass, 15 skipped (no `data/` screenshots on this PC).
+
 ```powershell
 cd "C:\AI STUFF\Claude\Diablo4\d4-visual-bot"
 git status                       # should be clean; if not, ask the user before touching anything
