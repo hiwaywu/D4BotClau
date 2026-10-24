@@ -1,6 +1,7 @@
 # HANDOFF — d4-visual-bot
 
-**Status:** full Helltide cycle built: town + stash → Warplan teleport → follow recorded route → farm → repeat. First full live round worked (2026-10-24 01:09): stash -> teleport -> route located -> farming. Not yet run for a whole Helltide or across a stash trip. Not safe to leave unattended.
+**Status:** full Helltide cycle built: town + stash → Warplan teleport → follow recorded route → farm → repeat. First full live round worked (2026-10-24 01:09). Since then, built offline (cloud session, no game): path planning around walls, idle reset, and an optional YOLO detector pipeline - none of it run live yet. Not safe to leave unattended.
+**Next session: start at section 0 below.**
 **Last updated:** 2026-10-24
 **Repo:** https://github.com/hiwaywu/D4BotClau (private). Push after every change; update this file in the same commit.
 **Project folder:** `C:\AI STUFF\Claude\Diablo4\d4-visual-bot` (the old copy in `OneDrive\Documents\deepseek-harness\default-workspace\d4-visual-bot` is stale)
@@ -18,6 +19,87 @@ cd "C:\AI STUFF\Claude\Diablo4\d4-visual-bot"
 Needs: Warplan next activity = Helltide, Subo in the party, 2560x1440 windowed, game window on top. F8 stops everything. `data/` (screenshots) and `logs/` are not in git; tests that need captures skip without them.
 
 > **Ban warning:** Blizzard prohibits botting. This project uses screen capture + synthetic input only (no memory reading, no injection, no anti-cheat bypass). It can still get the account banned. Watch it and keep F8 reachable.
+
+---
+
+## 0. NEXT SESSION AT THE HOME PC - START HERE
+
+**For Claude:** the user said "I have no idea what to do; when I get to my home PC, tell me exactly what to do". Walk them through the steps below **one step at a time**: give the exact command, say what they should see, wait for them to report (paste the console output, `logs\session.log` lines, or screenshots), and fix problems before moving on. Do not dump the whole list at once. Commands run in PowerShell in the project folder. After each step, record the result in this file (section 3 style) and push.
+
+The new work since the last live run is on branch **`ccr-43ec7177-fnszk1`** (unless it has been merged into `main` - check with `git log origin/main --oneline -3`; if the top commits mention YOLO/path planning, use `main`).
+
+### Step 1 - Get the new code (2 min)
+```powershell
+cd "C:\AI STUFF\Claude\Diablo4\d4-visual-bot"
+git status                       # should be clean; if not, ask the user before touching anything
+git fetch origin
+git checkout ccr-43ec7177-fnszk1 # or: git checkout main; git pull
+git pull
+.\setup.cmd                      # refresh dependencies (safe to rerun)
+```
+Expect: setup ends with "Setup complete." If `git checkout` complains about local changes, stop and look at them with the user.
+
+### Step 2 - Doctor (1 min, no input sent)
+Start Diablo IV (2560x1440 windowed, HDR off), stand in a Helltide or town, game window on top. Then:
+```powershell
+.\run.cmd -Doctor
+```
+Expect: the right window title, `minimap: ...` readable, `routes: 2 loaded`, and a new line `detector: off (YOLO; see docs/YOLO.md)`. Any traceback = fix before going on.
+
+### Step 3 - Path planning, 5-minute live farm (watched, F8 ready)
+In a Helltide, Subo in the party:
+```powershell
+.\run.cmd -EnableInput -IAcceptBanRisk -MaxSeconds 300 -Snapshots data\path1
+```
+Click into the game after starting it (the timer starts when the game has focus). Watch it.
+Expect: same hunting as before; when a pack is behind a wall/red edge it should walk around through an opening instead of pushing into the wall. Afterwards check:
+- `logs\session.log`: the 30s `Stats` lines - `stuck=` should be as low or lower than the last runs (soak 14: 6 in 10 min).
+- `data\path1\overlay_*.jpg`: green lines on the minimap = a planned route to a pack behind a wall.
+If it walks into walls more than before: set `nav: path_planning: false` in `config.yaml` and compare, then tell Claude what you saw.
+
+### Step 4 - Full cycle, at least 35 minutes (watched)
+Still untested live: the 30-minute stash trip and coming back, a Helltide ending, the new idle reset.
+```powershell
+.\run.cmd -Cycle -EnableInput -IAcceptBanRisk -MaxHours 1
+```
+Expect, in `logs\session.log`: `Cycle 1: farming` ... `farm ended: stash trip (30 min)` -> town -> teleport -> `Cycle 2: farming`. If nothing gets fought for 4 minutes it should log `idle reset (no fights or loot for 4 min)` and redo town -> teleport -> route (change with `-IdleResetMin 6`, `0` = off).
+If it stops with "no recorded route for this town": record that town now (Step 4b), then rerun.
+
+### Step 4b - Record a route for a new Helltide town (when it comes up, 3 min, no input)
+Stand on the town's waypoint, then:
+```powershell
+.\run.cmd -Record <townname>      # e.g. -Record zarbinzet
+```
+Click into the game, walk from the waypoint to a big open area of the Helltide, press F8 to save. Then commit + push `routes\<townname>\`.
+
+### Step 5 - YOLO, part 1: install + collect frames (one-time install ~10 min, then just play)
+Only after steps 3-4 look OK. Nothing here sends input.
+```powershell
+.\setup.cmd -Yolo                       # training tools; CUDA torch if an NVIDIA GPU is found; onnxruntime-directml
+.\run.cmd -Collect helltide             # then just play normally; F8 when done
+```
+Play 20-30 minutes per session: Helltide fights, elites, loot on the ground, chests, the green spawner things, some town. Do **3 or more sessions** on different days/zones (each makes its own folder in `data\yolo\raw\`). The console prints how many frames were saved each minute (~1 per second of changing view). Goal: 500+ frames total.
+
+### Step 6 - YOLO, part 2: label (the long part - spread it over evenings)
+```powershell
+.\run.cmd -Label
+```
+Drag a box around each monster (key 1), elite (2), dropped item (3), chest (4), spawner (5). Right-click deletes a box. Space = save + next, q = quit (it resumes where you stopped). Box **every** monster in a frame; frames with nothing in them are saved with no boxes (they are important). Do NOT box yourself, the tiger or Subo. Goal for a first model: 300+ labelled frames. Full rules: `docs/YOLO.md`.
+
+### Step 7 - YOLO, part 3: train + check (~1 h on an NVIDIA GPU)
+```powershell
+.\run.cmd -Train
+```
+Expect at the end: `Validation mAP50 ...` and a precision/recall line per class, then `Installed ...\models\d4.onnx`. Paste those lines to Claude. Then in `config.yaml` set `detector: enabled: true` and:
+```powershell
+.\run.cmd -Doctor                                    # detector: d4.onnx via onnxruntime (DmlExecutionProvider); sees monster 0.87 ...
+.\run.cmd -MaxSeconds 60 -Snapshots data\yolo1       # dry run, no input: check boxes on data\yolo1\overlay_*.jpg
+```
+Only if the boxes sit on real monsters (and not on fire/scenery/tiger): set `detector: aim: true` and do a 5-minute live run like Step 3. Then: collect more where it was wrong, `-Label` again (frames now come pre-boxed by the model; just fix them), `-Train` again.
+
+### Ongoing
+- After every step: tell Claude the result; Claude updates this file and pushes.
+- F8 stops everything. Never leave it running unattended.
 
 ---
 
