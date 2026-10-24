@@ -165,6 +165,8 @@ Commands: `.\run.cmd -Helltide -EnableInput -IAcceptBanRisk` (teleport only), ad
 
 - **First full live round (01:09):** T -> Ichorfall -> stash (bags already empty) -> Warplan teleport -> landed in the Helltide (9s) -> route **marowen located (0.99)** -> followed it -> farmed: 7 packs, 6 loot clicks, stuck 0 in 60s. Human for the first 12s after landing (demon cooldown), route walking continued meanwhile. User pressed F8 after 1 min. Not yet seen: the 5-min stash trip back and forth, a Helltide ending, a full hour.
 
+- User: the bot got stuck attacking the **red sword icon** on the minimap (a map marker, not an enemy). Red blobs bigger than `nav.max_elite_dot_px` (60 px area; real elite dots are 11-24) are now ignored, plus any yellow blob touching one (the event icon's flame). This also drops the big red skull icon; only small red dots count as elites.
+
 ## 4. Not verified / do not trust yet
 
 - **Run with input.** Not done yet. Start with `-EnableInput -IAcceptBanRisk -MaxSeconds 60 -Snapshots data\live1`. Watch: it presses `2` only after the buff has been gone ~11s, it walks along paths, `rot` stays near 0, stuck count stays low.

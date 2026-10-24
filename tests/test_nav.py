@@ -742,3 +742,19 @@ def test_bot_follows_recorded_route_then_stays_on_leash(tmp_path: Path, clock: C
             after_end.append(float(np.hypot(*(pos - end))))
     assert closest < 40.0, closest                         # walked the route to its end
     assert after_end and max(after_end[-200:]) < 80.0 + 120.0  # then stayed around the end
+
+
+def test_big_red_map_icon_is_not_an_elite(tmp_path: Path, clock: Clock) -> None:
+    """Live: the bot got stuck attacking the red sword marker on the minimap."""
+    from d4bot.config import CombatConfig
+
+    config = _config(tmp_path, combat=CombatConfig(mode="hunt"))
+    world, _ = _maze()
+    frame = _frame(world, np.array([800.0, 700.0]))
+    x, y, w, h = MINIMAP.pixels(W, H)
+    cx, cy = x + w // 2, y + h // 2
+    cv2.rectangle(frame, (cx - 30, cy - 40), (cx - 22, cy - 10), (40, 40, 230), -1)   # sword blade
+    cv2.rectangle(frame, (cx - 36, cy - 18), (cx - 16, cy - 14), (40, 40, 230), -1)   # crossguard
+    _dot(frame, 60, 40, colour=(40, 40, 230))                                       # a real elite dot
+    packs = Vision(config).observe(frame).minimap.packs
+    assert len(packs) == 1 and packs[0].elite and packs[0].dx > 40

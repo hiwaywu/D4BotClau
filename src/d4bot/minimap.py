@@ -109,6 +109,21 @@ def monster_packs(
     for sx, sy in stars or []:  # a loot star is not a monster
         half = STAR.shape[0] // 2 + 2
         monster[max(0, sy - half) : sy + half, max(0, sx - half) : sx + half] = 0
+    # Elite dots are small (11-24 px area). Large red shapes are map icons
+    # (live: the red sword marker, the spiky event icon) - not enemies; the
+    # bot got stuck attacking the sword. Drop them, and any yellow blob that
+    # touches one (the event icon's small flame).
+    n_red, red_labels, red_stats, _ = cv2.connectedComponentsWithStats(elite)
+    big = np.zeros_like(elite)
+    for i in range(1, n_red):
+        if red_stats[i][cv2.CC_STAT_AREA] > config.max_elite_dot_px:
+            big[red_labels == i] = 255
+    if big.any():
+        elite = cv2.bitwise_and(elite, cv2.bitwise_not(big))
+        near_icon = cv2.dilate(big, np.ones((9, 9), np.uint8))
+        n_y, y_labels = cv2.connectedComponents(monster)
+        for i in set(np.unique(y_labels[near_icon > 0]).tolist()) - {0}:
+            monster[y_labels == i] = 0
     dots = cv2.bitwise_or(monster, elite)
     n, labels_dots, stats, centers = cv2.connectedComponentsWithStats(dots)
     # A yellow star sits behind the player arrow (the player's own marker,
