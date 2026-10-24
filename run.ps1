@@ -19,7 +19,8 @@ param(
     [switch]$Helltide,
     [switch]$WithTown,
     [switch]$Cycle,
-    [double]$MaxHours = 2
+    [double]$MaxHours = 2,
+    [double]$IdleResetMin = 4
 )
 
 $ErrorActionPreference = "Stop"
@@ -42,7 +43,7 @@ if ($Doctor) {
 }
 
 if ($Cycle) {
-    $CArgs = @("-m", "d4bot", "cycle", "--config", $Config, "--max-hours", "$MaxHours")
+    $CArgs = @("-m", "d4bot", "cycle", "--config", $Config, "--max-hours", "$MaxHours", "--idle-reset-min", "$IdleResetMin")
     if ($EnableInput) { $CArgs += "--enable-input" }
     if ($IAcceptBanRisk) { $CArgs += "--i-understand-ban-risk" }
     & $Python @CArgs

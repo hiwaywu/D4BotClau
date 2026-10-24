@@ -152,6 +152,11 @@ class DebugOverlay:
             px, py = int(cx + pack.dx), int(cy + pack.dy)
             color = (255, 0, 255) if pack.elite else (0, 255, 255)
             cv2.circle(frame, (px, py), 6 + 2 * min(pack.dots, 5), color, 2, cv2.LINE_AA)
+            if not pack.clear and pack.via is not None:
+                # Planned route around a wall: player -> waypoint -> pack.
+                vx, vy = int(cx + pack.via[0]), int(cy + pack.via[1])
+                cv2.line(frame, (int(cx), int(cy)), (vx, vy), (0, 255, 0), 1, cv2.LINE_AA)
+                cv2.line(frame, (vx, vy), (px, py), (0, 160, 0), 1, cv2.LINE_AA)
         for sx, sy in mm.loot:
             cv2.circle(frame, (int(cx + sx), int(cy + sy)), 14, (255, 255, 255), 2, cv2.LINE_AA)
         if brain is not None:

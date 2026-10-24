@@ -243,6 +243,9 @@ class NavConfig:
     noise: float = 0.08
     min_response: float = 0.08        # phase-correlation confidence for a valid shift
     max_shift_px: float = 25.0        # bigger jumps = teleport / map change; reset
+    # Path planning: walk around walls to packs/stars instead of straight at them.
+    path_planning: bool = True
+    path_cell_px: int = 4             # planning grid cell (minimap px)
 
 
 @dataclass(frozen=True)

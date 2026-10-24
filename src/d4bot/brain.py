@@ -490,19 +490,22 @@ class CombatBrain:
         if self._hunt_target is None and self._route_goal(obs, notes):
             return None  # following a recorded route (or heading back on its leash)
         if self._hunt_target is None:
-            # Elites count as closer; packs behind blocked ground count as much
-            # further, so the bot takes open paths instead of hugging a wall.
+            # Elites count as closer. A pack behind a wall costs its walking
+            # route (path planning) and is steered to via the route's first
+            # waypoint; with no route on the minimap it counts as much further,
+            # so the bot takes open paths instead of hugging a wall.
             def cost(p: Pack) -> float:
-                return p.distance / (2.0 if p.elite else 1.0) * (1.0 if p.clear else 3.0)
+                if p.reachable:
+                    return p.walk_distance / (2.0 if p.elite else 1.0)
+                return p.distance / (2.0 if p.elite else 1.0) * 3.0
 
             goal = min(packs, key=cost) if packs else None
-            self._hunt_goal = goal.angle if goal is not None else None
+            self._hunt_goal = goal.goal_angle if goal is not None else None
             self._hunt_goal_pack = goal
-            self._hunt_goal_weight = 1.0 if goal is None or goal.clear else 0.35
+            self._hunt_goal_weight = 1.0 if goal is None or goal.reachable else 0.35
             if goal is not None:
-                notes.append(
-                    f"{len(packs)} packs, goal {goal.distance:.0f}px{'' if goal.clear else ' (blocked)'}"
-                )
+                how = "" if goal.clear else (f" (route {goal.path_px:.0f}px)" if goal.reachable else " (blocked)")
+                notes.append(f"{len(packs)} packs, goal {goal.distance:.0f}px{how}")
             return None
 
         self._moving_since = None
@@ -521,8 +524,11 @@ class CombatBrain:
                 if now - self._last_click >= combat.approach_click_s:
                     # Click short of the pack, on the ground, not on a monster.
                     gap = max(target.distance - combat.attack_range_px * 0.6, 4.0)
+                    if not target.clear and target.via is not None:
+                        # Wall in between: walk the planned route instead.
+                        gap = max(math.hypot(*target.via), 4.0)
                     distance = max(gap * combat.screen_per_minimap_px * scale, 110 * scale)
-                    angle = target.angle + self._rotation
+                    angle = target.goal_angle + self._rotation
                     x = player_x + math.cos(angle) * distance
                     y = player_y + math.sin(angle) * distance * self.config.nav.y_scale
                     x = float(np.clip(x, obs.width * 0.05, obs.width * 0.95))
@@ -578,12 +584,15 @@ class CombatBrain:
         px, py = obs.minimap.position
         self._ignored_loot = [entry for entry in self._ignored_loot if entry[0] > now]
         self._ignored_screen = [entry for entry in self._ignored_screen if entry[0] > now]
-        stars = [
-            (dx, dy) for dx, dy in obs.minimap.loot
+        vias = obs.minimap.loot_via or tuple((dx, dy) for dx, dy in obs.minimap.loot)
+        candidates = [
+            ((dx, dy), via) for (dx, dy), via in zip(obs.minimap.loot, vias)
             if math.hypot(dx, dy) <= combat.loot_range_px
             and all(math.hypot(px + dx - ix, py + dy - iy) > 15.0 for _, ix, iy in self._ignored_loot)
         ]
-        star = min(stars, key=lambda s: math.hypot(*s)) if stars else None
+        best = min(candidates, key=lambda c: math.hypot(*c[0])) if candidates else None
+        star = best[0] if best is not None else None
+        star_via = best[1] if best is not None else None
         if star is not None and math.hypot(*star) <= combat.loot_near_px:
             self._loot_last_close = now
         # Any item label near the player is worth a click (the user's loot
@@ -649,9 +658,11 @@ class CombatBrain:
 
         if star is None:
             return None  # close but no label yet: let nav keep us here
-        # Walk to the star: point the nav goal at it with a strong pull.
+        # Walk to the star (or the route waypoint around a wall): point the
+        # nav goal at it with a strong pull.
         self._loot_goal = True
-        self._hunt_goal = math.atan2(star[1], star[0])
+        walk_to = star_via if star_via is not None else star
+        self._hunt_goal = math.atan2(walk_to[1], walk_to[0])
         self._hunt_goal_pack = None
         self._hunt_goal_weight = combat.loot_weight / max(combat.hunt_weight, 1e-6)
         notes.append(f"loot star {math.hypot(*star):.0f}px")
@@ -792,7 +803,7 @@ class CombatBrain:
             self.stuck_count += 1
             self._blocked.append((now, self._heading))
             goal = self._hunt_goal_pack
-            if goal is not None and abs(_wrap(goal.angle - self._heading)) < math.radians(60):
+            if goal is not None and abs(_wrap(goal.goal_angle - self._heading)) < math.radians(60):
                 # Stuck while walking at a pack: it is behind something; skip it a while.
                 mx, my = minimap.position
                 self._ignored.append((now + 20.0, mx + goal.dx, my + goal.dy))

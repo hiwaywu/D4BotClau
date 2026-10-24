@@ -5,7 +5,10 @@ The minimap is player-centred, so:
     directions are open ground and which run into cliffs or the zone edge;
   * the frame-to-frame shift of the minimap image (phase correlation) is the
     player's motion. Integrating it gives a rough position for stuck detection
-    and "don't go back where we've been" exploration.
+    and "don't go back where we've been" exploration;
+  * a breadth-first wave over the walkable mask gives the walking route to a
+    pack or loot star that is behind a wall (idea from qqt_diablo's explorer,
+    which runs A* over the game's walkable grid; here the grid is the minimap).
 """
 
 from __future__ import annotations
@@ -28,6 +31,10 @@ class Pack:
     dots: int
     elite: bool
     clear: bool = True  # straight line from the player stays on walkable ground
+    # Walking route (path planning): first waypoint to head for, and the route
+    # length in minimap px. None / inf = no route on the visible minimap.
+    via: tuple[float, float] | None = None
+    path_px: float = math.inf
 
     @property
     def distance(self) -> float:
@@ -36,6 +43,22 @@ class Pack:
     @property
     def angle(self) -> float:
         return math.atan2(self.dy, self.dx)
+
+    @property
+    def reachable(self) -> bool:
+        return self.clear or self.via is not None
+
+    @property
+    def walk_distance(self) -> float:
+        """Distance on foot: straight line if clear, else the planned route."""
+        return self.distance if self.clear else self.path_px
+
+    @property
+    def goal_angle(self) -> float:
+        """Direction to walk: straight at the pack, or at the route's waypoint."""
+        if self.clear or self.via is None:
+            return self.angle
+        return math.atan2(self.via[1], self.via[0])
 
 
 @dataclass(frozen=True)
@@ -50,6 +73,9 @@ class MinimapReading:
     region: tuple[int, int, int, int] = (0, 0, 0, 0)
     packs: tuple[Pack, ...] = ()
     loot: tuple[tuple[float, float], ...] = ()  # legendary stars, offset from the player
+    # Per star: where to walk (the star itself if the line is clear, a route
+    # waypoint if it is behind a wall, None if no route on the minimap).
+    loot_via: tuple[tuple[float, float] | None, ...] = ()
 
 
 INVALID = MinimapReading(valid=False)
@@ -188,6 +214,105 @@ def line_is_clear(mask: np.ndarray, dx: float, dy: float, start_px: float, stop_
     return float((mask[ys, xs] > 0).mean()) >= 0.9
 
 
+class PathField:
+    """Walking distance from the player to every minimap cell (8-connected BFS).
+
+    The walkable mask is shrunk to cells of `cell` px; a cell counts as open
+    when at least half of it is walkable. Built once per frame, it answers
+    "how do I get to (dx, dy)" for every pack and star at once.
+    """
+
+    def __init__(self, mask: np.ndarray, cell: int):
+        self.mask = mask
+        self.cell = max(1, int(cell))
+        h, w = mask.shape[:2]
+        gh, gw = max(1, h // self.cell), max(1, w // self.cell)
+        small = cv2.resize(mask[: gh * self.cell, : gw * self.cell], (gw, gh), interpolation=cv2.INTER_AREA)
+        self.open = (small >= 128).astype(np.uint8)
+        self.cx, self.cy = gw // 2, gh // 2
+        self.open[self.cy, self.cx] = 1
+        self.level = np.full((gh, gw), -1, dtype=np.int32)
+        self.level[self.cy, self.cx] = 0
+        reached = np.zeros((gh, gw), dtype=np.uint8)
+        reached[self.cy, self.cx] = 1
+        frontier = reached.copy()
+        kernel = np.ones((3, 3), np.uint8)
+        step = 0
+        while True:
+            step += 1
+            grown = cv2.dilate(frontier, kernel)
+            grown &= self.open
+            grown &= 1 - reached
+            if not grown.any():
+                break
+            self.level[grown > 0] = step
+            reached |= grown
+            frontier = grown
+
+    def _to_cell(self, dx: float, dy: float) -> tuple[int, int]:
+        h, w = self.mask.shape[:2]
+        gh, gw = self.level.shape
+        gx = int(np.clip((w / 2.0 + dx) // self.cell, 0, gw - 1))
+        gy = int(np.clip((h / 2.0 + dy) // self.cell, 0, gh - 1))
+        return gx, gy
+
+    def _to_offset(self, gx: int, gy: int) -> tuple[float, float]:
+        h, w = self.mask.shape[:2]
+        return (gx + 0.5) * self.cell - w / 2.0, (gy + 0.5) * self.cell - h / 2.0
+
+    def route(self, dx: float, dy: float, start_px: float, snap_cells: int = 3) -> tuple[tuple[float, float], float] | None:
+        """(waypoint offset, route length px) toward (dx, dy), or None if unreachable.
+
+        The waypoint is the furthest point along the route that the player can
+        walk to in a straight line, so one click covers as much of it as possible.
+        """
+        gx, gy = self._to_cell(dx, dy)
+        gh, gw = self.level.shape
+        if self.level[gy, gx] < 0:
+            # Dots sit on the edge of paths; snap to the nearest reached cell.
+            best = None
+            for oy in range(-snap_cells, snap_cells + 1):
+                for ox in range(-snap_cells, snap_cells + 1):
+                    x, y = gx + ox, gy + oy
+                    if 0 <= x < gw and 0 <= y < gh and self.level[y, x] >= 0:
+                        d = math.hypot(ox, oy)
+                        if best is None or d < best[0]:
+                            best = (d, x, y)
+            if best is None:
+                return None
+            _, gx, gy = best
+        # Walk back down the BFS levels to the player.
+        path = [(gx, gy)]
+        x, y = gx, gy
+        while self.level[y, x] > 0:
+            want = self.level[y, x] - 1
+            step = None
+            for ox, oy in ((0, -1), (1, 0), (0, 1), (-1, 0), (1, -1), (1, 1), (-1, 1), (-1, -1)):
+                nx, ny = x + ox, y + oy
+                if 0 <= nx < gw and 0 <= ny < gh and self.level[ny, nx] == want:
+                    step = (nx, ny)
+                    break
+            if step is None:
+                return None
+            x, y = step
+            path.append((x, y))
+        path.reverse()  # player -> goal
+        offsets = [self._to_offset(px, py) for px, py in path]
+        offsets[-1] = (dx, dy)
+        length = 0.0
+        prev = (0.0, 0.0)
+        for ox, oy in offsets:
+            length += math.hypot(ox - prev[0], oy - prev[1])
+            prev = (ox, oy)
+        waypoint = offsets[min(1, len(offsets) - 1)]
+        for ox, oy in offsets[1:]:
+            if line_is_clear(self.mask, ox, oy, start_px, stop_short_px=0.0):
+                waypoint = (ox, oy)
+            else:
+                break
+        return waypoint, length
+
+
 def walkable_mask(crop: np.ndarray, config: NavConfig) -> np.ndarray:
     hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
     mask = _hsv_mask(hsv, config.walkable_hsv)
@@ -293,6 +418,29 @@ class MinimapTracker:
                 self._position += shift
         self._prev = gray
 
+        start = self.config.ray_start_px
+        packs = [
+            Pack(p.dx, p.dy, p.dots, p.elite, line_is_clear(mask, p.dx, p.dy, start))
+            for p in monster_packs(crop, self.config, stars)
+        ]
+        loot = [(sx - w / 2.0, sy - h / 2.0) for sx, sy in stars]
+        loot_via: list[tuple[float, float] | None] = [
+            (lx, ly) if line_is_clear(mask, lx, ly, start) else None for lx, ly in loot
+        ]
+        if self.config.path_planning and (
+            any(not p.clear for p in packs) or any(v is None for v in loot_via)
+        ):
+            field_ = PathField(mask, self.config.path_cell_px)
+            for i, p in enumerate(packs):
+                if not p.clear:
+                    found = field_.route(p.dx, p.dy, start)
+                    if found is not None:
+                        packs[i] = Pack(p.dx, p.dy, p.dots, p.elite, False, found[0], found[1])
+            for i, (lx, ly) in enumerate(loot):
+                if loot_via[i] is None:
+                    found = field_.route(lx, ly, start)
+                    loot_via[i] = found[0] if found is not None else None
+
         return MinimapReading(
             valid=True,
             angles=angles,
@@ -302,9 +450,7 @@ class MinimapTracker:
             position=(float(self._position[0]), float(self._position[1])),
             walkable_ratio=walkable,
             region=(x, y, w, h),
-            packs=tuple(
-                Pack(p.dx, p.dy, p.dots, p.elite, line_is_clear(mask, p.dx, p.dy, self.config.ray_start_px))
-                for p in monster_packs(crop, self.config, stars)
-            ),
-            loot=tuple((sx - w / 2.0, sy - h / 2.0) for sx, sy in stars),
+            packs=tuple(packs),
+            loot=tuple(loot),
+            loot_via=tuple(loot_via),
         )

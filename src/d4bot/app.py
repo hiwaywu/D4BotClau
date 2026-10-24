@@ -567,7 +567,14 @@ def cmd_town(config_path: str, enable_input: bool, accept_risk: bool) -> int:
     return _routine_command(config_path, enable_input, accept_risk, [_run_town], "Town routine: T -> town -> stash -> move inventory.")
 
 
-def cmd_cycle(config_path: str, enable_input: bool, accept_risk: bool, max_hours: float, stash_every_min: float) -> int:
+def cmd_cycle(
+    config_path: str,
+    enable_input: bool,
+    accept_risk: bool,
+    max_hours: float,
+    stash_every_min: float,
+    idle_reset_min: float = 4.0,
+) -> int:
     """Town + stash -> Warplan teleport -> farm until the Helltide ends -> repeat."""
     from .warplan import WarplanConfig, WarplanVision
 
@@ -660,6 +667,7 @@ def cmd_cycle(config_path: str, enable_input: bool, accept_risk: bool, max_hours
             gone_since: list[float | None] = [None]
             farm_start = time.monotonic()
             route_seen = [False]
+            last_busy = [farm_start]
 
             def end_check(frame, obs, decision, now):  # type: ignore[no-untyped-def]
                 if obs.black or obs.screen.no_hud or decision.state in {"DEAD", "PAUSED", "LOADING", "NOHUD"}:
@@ -681,6 +689,14 @@ def cmd_cycle(config_path: str, enable_input: bool, accept_risk: bool, max_hours
                     return "Helltide ended (timer gone 20s)"
                 if stash_every_min > 0 and now - farm_start >= stash_every_min * 60:
                     return f"stash trip ({stash_every_min:g} min)"
+                # Watchdog (idea from qqt_diablo's Helltide script, which resets
+                # when it has not cast anything for a while): nothing fought or
+                # looted for idle_reset_min = lost, stuck, or an empty corner.
+                # Start the round over: town, teleport, route.
+                if decision.state in {"FIGHT", "TRACK", "APPROACH", "LOOT", "PULSE"}:
+                    last_busy[0] = now
+                elif idle_reset_min > 0 and now - last_busy[0] >= idle_reset_min * 60:
+                    return f"idle reset (no fights or loot for {idle_reset_min:g} min)"
                 return None
 
             log.info("Cycle %d: farming", cycles)
@@ -699,7 +715,7 @@ def cmd_cycle(config_path: str, enable_input: bool, accept_risk: bool, max_hours
                     return 1
                 reason = _farm(config, input_enabled=True, end_check=end_check, loot_hold_s=8.0)
                 log.info("Cycle %d: farm ended: %s", cycles, reason)
-            if not (reason.startswith("Helltide ended") or reason.startswith("stash trip")):
+            if not (reason.startswith("Helltide ended") or reason.startswith("stash trip") or reason.startswith("idle reset")):
                 print(f"Cycle stopped: {reason}")
                 return 0 if reason.startswith("F8") else 1
             if not wait(2.0):
@@ -839,6 +855,10 @@ def build_parser() -> argparse.ArgumentParser:
     cycle.add_argument("--i-understand-ban-risk", action="store_true")
     cycle.add_argument("--max-hours", type=float, default=2.0)
     cycle.add_argument("--stash-every-min", type=float, default=30.0, help="town trip during a long Helltide (0 = never)")
+    cycle.add_argument(
+        "--idle-reset-min", type=float, default=4.0,
+        help="restart the round (town -> teleport -> route) after this long with no fights or loot (0 = never)",
+    )
 
     helltide = sub.add_parser("helltide", help="map -> Warplan Teleport -> Helltide (optionally town + stash first)")
     helltide.add_argument("--config", default=str(_default_config()))
@@ -899,7 +919,10 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "cycle":
-            return cmd_cycle(args.config, args.enable_input, args.i_understand_ban_risk, args.max_hours, args.stash_every_min)
+            return cmd_cycle(
+                args.config, args.enable_input, args.i_understand_ban_risk,
+                args.max_hours, args.stash_every_min, args.idle_reset_min,
+            )
         if args.command == "helltide":
             return cmd_helltide(args.config, args.enable_input, args.i_understand_ban_risk, args.with_town)
         if args.command == "teach-stash":

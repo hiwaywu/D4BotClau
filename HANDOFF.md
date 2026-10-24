@@ -171,9 +171,16 @@ Commands: `.\run.cmd -Helltide -EnableInput -IAcceptBanRisk` (teleport only), ad
 
 - User: the bot got stuck on an **orange triangle objective icon** (with a small red dot attached). Measured 11k yellow blobs on live minimaps: monster dots 18-24 px; every blob over ~45 px was an icon (event-marker flames, the yellow tips of green-gem markers). Yellow blobs > `nav.max_monster_dot_px` (44) are now icons, and red dots touching them are dropped too. Test helper dots shrunk to real size (radius 3).
 
+## 3n. Ideas taken from qqt_diablo (2026-10-24, built offline, not yet run live)
+
+User asked what helps from https://github.com/qqtnn/qqt_diablo. It is a Lua plugin set for an **injected** loader (reads game memory, engine pathfinder, packets) - the opposite of this project's screen-only design and a far bigger ban risk, so no code was used, only ideas:
+- **Path planning** (from its `piteer` explorer, which runs A* on the game's walkable grid). `minimap.PathField`: BFS over the minimap walkable mask on a 4px grid (`nav.path_planning`, `nav.path_cell_px`). Runs only when a pack or loot star is behind blocked ground; each gets `Pack.via` (furthest route point reachable in a straight line) and `Pack.path_px` (route length). Goal choice now costs the route length instead of "3x if blocked"; steering, approach clicks and loot walking head for the waypoint; stuck-at-pack check uses that direction. Overlay draws the route in green. Cost: ~0.2ms typical, ~6ms on a serpentine worst case. Sim (`test_hunt_walks_around_a_wall_to_reach_a_pack`): pack behind a wall with a gap to the side reached in 5.3s, stuck 0 (planning off: 18.1s, stuck 1). Packs only reachable via ground off the visible minimap still count as blocked.
+- **Idle watchdog** (its Helltide script resets after a long time without casting). In `-Cycle`, no FIGHT/APPROACH/LOOT for `--idle-reset-min` (default 4, `-IdleResetMin` in run.ps1, 0 = off) ends the round like a stash trip: town -> teleport -> route.
+- Not taken: its task-manager structure (one task per tick, `shouldExecute/Execute`) - worth doing before adding spawners / revive / potions, but a refactor of `CombatBrain.decide` needs live runs to trust. Melee "move slightly past the target" - not needed while approach works. Evade, health-based targeting, auto-repair API - need game memory.
+
 ### Where it stands (end of 2026-10-24 night session)
 - Works live: town + stash (Ichorfall), Warplan teleport, route recognition + following (marowen 0.99), hunting/looting (4.5 min: 50 packs, 14 loot, stuck 1), focus pause, no-Helltide retry.
-- Not yet seen live: the 5-min stash trip and return, a Helltide ending, a full hour; the icon fixes (sword, triangle) after the last run.
+- Not yet seen live: the 5-min stash trip and return, a Helltide ending, a full hour; the icon fixes (sword, triangle) after the last run; path planning and the idle reset (3n). On the next run watch the overlay for green route lines and `goal ...px (route ...px)` in the log.
 - Routes recorded: kyovashad, marowen. Other Helltide towns need `.\run.cmd -Record <town>` the first time they come up (the cycle stops with "no recorded route for this town").
 - **Next ideas (user):** the green-leaf **spawner icons** on the minimap — touching one makes monsters spawn nonstop around it; the bot could walk to one, interact, and fight there (may be seasonal). Then: auto-revive after death; health-based potions.
 

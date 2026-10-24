@@ -758,3 +758,76 @@ def test_big_red_map_icon_is_not_an_elite(tmp_path: Path, clock: Clock) -> None:
     _dot(frame, 60, 40, colour=(40, 40, 230))                                       # a real elite dot
     packs = Vision(config).observe(frame).minimap.packs
     assert len(packs) == 1 and packs[0].elite and packs[0].dx > 40
+
+
+def _walled_world() -> tuple[np.ndarray, np.ndarray]:
+    """Open ground split by a wall; the only way through is a gap to the east."""
+    world = np.zeros((900, 1100, 3), dtype=np.uint8)
+    world[:] = BLOCKED
+    cv2.rectangle(world, (100, 100), (950, 750), OPEN, -1)
+    cv2.rectangle(world, (100, 390), (430, 425), BLOCKED, -1)
+    walls = np.all(world == BLOCKED, axis=2)
+    rng = np.random.default_rng(2)
+    grain = cv2.GaussianBlur(rng.normal(0, 60, world.shape[:2]).astype(np.float32), (0, 0), 1.5)
+    world = np.clip(world.astype(np.float32) + grain[:, :, None], 0, 255).astype(np.uint8)
+    return world, walls
+
+
+def test_path_field_routes_around_a_wall() -> None:
+    from d4bot.minimap import PathField
+
+    mask = np.full((200, 260), 255, dtype=np.uint8)
+    mask[60:80, :170] = 0                                 # wall above the player, gap on the right
+    field = PathField(mask, cell=4)
+    found = field.route(0.0, -70.0, start_px=14)          # target straight up, behind the wall
+    assert found is not None
+    (wx, wy), length = found
+    assert wx > 30                                        # first heads right, toward the gap
+    assert length > 120                                   # longer than the 70px straight line
+    sealed = mask.copy()
+    sealed[60:80, :] = 0                                  # no gap at all
+    assert PathField(sealed, cell=4).route(0.0, -70.0, start_px=14) is None
+
+
+def _hunt_behind_wall(tmp_path: Path, clock: Clock, planning: bool) -> tuple[list[str], int]:
+    from d4bot.config import CombatConfig
+
+    config = _config(
+        tmp_path,
+        combat=CombatConfig(mode="hunt", fight_radius_px=40.0, attack_range_px=40.0, loot_enabled=False),
+        nav=NavConfig(noise=0.02, path_planning=planning),
+    )
+    world, walls = _walled_world()
+    vision = Vision(config)
+    brain = CombatBrain(config, rng=random.Random(5))
+    pos = np.array([300.0, 480.0])
+    pack = np.array([300.0, 345.0])                       # 135px north, behind the wall
+    x, y, w, h = MINIMAP.pixels(W, H)
+    target = None
+    states = []
+    dt = 0.05
+    for _ in range(int(25.0 / dt)):
+        clock.now += dt
+        frame = _frame(world, pos)
+        dx, dy = pack - pos
+        if abs(dx) < w / 2 - 6 and abs(dy) < h / 2 - 6:
+            _dot(frame, int(round(dx)), int(round(dy)))
+        decision = brain.decide(vision.observe(frame), foreground=True)
+        states.append(decision.state)
+        if decision.state == "FIGHT":
+            break
+        for action in decision.actions:
+            if action.kind == "click":
+                sx = action.x - W * config.nav.player_x
+                sy = (action.y - H * config.nav.player_y) / config.nav.y_scale
+                angle = math.atan2(sy, sx)
+                target = pos + 400.0 * np.array([math.cos(angle), math.sin(angle)])
+        pos = _walk(walls, pos, target, speed=3.0)
+    return states, brain.stuck_count
+
+
+def test_hunt_walks_around_a_wall_to_reach_a_pack(tmp_path: Path, clock: Clock) -> None:
+    """qqt_diablo-style path planning: go through the gap instead of into the wall."""
+    states, stuck = _hunt_behind_wall(tmp_path, clock, planning=True)
+    assert states[-1] == "FIGHT", (len(states), stuck)
+    assert len(states) * 0.05 < 10.0                      # without planning: ~18s and a stuck event

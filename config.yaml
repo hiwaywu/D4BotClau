@@ -120,6 +120,12 @@ nav:
   memory_s: 90.0
   revisit_weight: 0.45
   continuity_weight: 0.35
+  # Path planning: a pack or loot star behind a wall/red edge gets a walking
+  # route over the minimap's walkable ground (BFS on a path_cell_px grid); the
+  # bot heads for the route's first waypoint instead of straight into the wall.
+  # Off = old behaviour (blocked packs only pull weakly).
+  path_planning: true
+  path_cell_px: 4
 
 # Recorded routes. Record one per Helltide zone (no input is sent):
 #   .\run.cmd -Record kehjistan_1     (stand on the waypoint, walk, F8 to save)
