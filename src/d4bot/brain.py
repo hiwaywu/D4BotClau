@@ -548,12 +548,36 @@ class CombatBrain:
             y = obs.height * self.config.nav.player_y + math.sin(angle) * distance * self.config.nav.y_scale
             x = float(np.clip(x, obs.width * 0.05, obs.width * 0.95))
             y = float(np.clip(y, obs.height * 0.10, obs.height * self.config.nav.click_y_max))
+            body = self._detected_body(obs, x, y)
+            if body is not None:
+                # The detector found the monster itself: aim at it, not at
+                # the spot estimated from the minimap dot.
+                x, y = body
+                notes.append("aim@yolo")
             actions.append(Action(kind="aim", x=int(round(x)), y=int(round(y))))
             actions.append(Action(kind="press", key=skill.key))
             self._last_press[skill.name] = now
         kind = "elite" if target.elite else "pack"
         notes.append(f"{kind} x{target.dots} @{target.distance:.0f}px {math.degrees(target.angle) % 360:.0f}deg")
         return Decision(actions=actions, state="FIGHT", note=", ".join(notes))
+
+    def _detected_body(self, obs: Observation, est_x: float, est_y: float) -> tuple[float, float] | None:
+        """Detected monster/elite near the player, closest to the minimap estimate."""
+        det = self.config.detector
+        if not det.aim or not obs.detections:
+            return None
+        scale = obs.height / 1440.0
+        player_x = obs.width * self.config.nav.player_x
+        player_y = obs.height * self.config.nav.player_y
+        bodies = [
+            d.center for d in obs.detections
+            if d.label in {"monster", "elite"}
+            and math.hypot(d.center[0] - player_x, d.center[1] - player_y) <= det.aim_radius_px * scale
+        ]
+        if not bodies:
+            return None
+        bx, by = min(bodies, key=lambda c: math.hypot(c[0] - est_x, c[1] - est_y))
+        return float(bx), float(by)
 
     def _route_goal(self, obs: Observation, notes: list[str]) -> bool:
         """Point the nav goal along a recorded route. False = no route / free to roam."""

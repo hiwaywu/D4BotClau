@@ -1,0 +1,5 @@
+# Only for training the optional YOLO detector (docs/YOLO.md); installed by
+# .\setup.cmd -Yolo. Playing with a trained model needs only requirements.txt
+# (OpenCV loads the ONNX file); add onnxruntime-directml to run it on the GPU.
+ultralytics>=8.3,<9
+onnx>=1.16

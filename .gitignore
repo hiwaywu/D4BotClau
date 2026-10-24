@@ -14,3 +14,7 @@ logs/
 data/
 templates/skills/*.png
 !templates/skills/.gitkeep
+
+# YOLO training runs and raw weights (the exported models/d4.onnx is small and kept).
+runs/
+*.pt

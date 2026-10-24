@@ -20,6 +20,10 @@ param(
     [switch]$WithTown,
     [switch]$Cycle,
     [double]$MaxHours = 2,
+    [string]$Collect,
+    [switch]$Label,
+    [switch]$Train,
+    [int]$Epochs = 100,
     [double]$IdleResetMin = 4
 )
 
@@ -69,6 +73,21 @@ if ($Town) {
     if ($EnableInput) { $TownArgs += "--enable-input" }
     if ($IAcceptBanRisk) { $TownArgs += "--i-understand-ban-risk" }
     & $Python @TownArgs
+    exit $LASTEXITCODE
+}
+
+if ($Collect) {
+    & $Python -m d4bot collect $Collect --config $Config
+    exit $LASTEXITCODE
+}
+
+if ($Label) {
+    & $Python (Join-Path $Project "tools\yolo_label.py") --config $Config
+    exit $LASTEXITCODE
+}
+
+if ($Train) {
+    & $Python (Join-Path $Project "tools\yolo_train.py") --config $Config --epochs $Epochs
     exit $LASTEXITCODE
 }
 

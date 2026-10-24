@@ -249,6 +249,25 @@ class NavConfig:
 
 
 @dataclass(frozen=True)
+class DetectorConfig:
+    """Optional YOLO detector (src/d4bot/detector.py, docs/YOLO.md). Off by default."""
+
+    enabled: bool = False
+    model: str = "models/d4.onnx"     # exported by tools/yolo_train.py
+    classes: tuple[str, ...] = ("monster", "elite", "loot", "chest", "spawner")
+    input_size: int = 640
+    confidence: float = 0.40
+    iou: float = 0.50
+    every_n_frames: int = 2           # detector at ~half the loop rate; boxes reused in between
+    backend: str = "auto"             # auto = onnxruntime (GPU) if installed, else OpenCV (CPU)
+    roi: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 0.82)  # keep detections above the HUD
+    # Aim at the nearest detected monster/elite while fighting a minimap pack
+    # (instead of the direction estimated from the minimap dot).
+    aim: bool = False
+    aim_radius_px: int = 600          # at 1440p, from the player
+
+
+@dataclass(frozen=True)
 class RoutesConfig:
     """Recorded routes (run.cmd -Record NAME): follow a walked path, then roam on a leash."""
 
@@ -377,6 +396,7 @@ class BotConfig:
     combat: CombatConfig = field(default_factory=CombatConfig)
     routes: RoutesConfig = field(default_factory=RoutesConfig)
     death: DeathConfig = field(default_factory=lambda: DeathConfig(enabled=False))
+    detector: DetectorConfig = field(default_factory=DetectorConfig)
 
 
 def _section(raw: dict[str, Any], key: str) -> dict[str, Any]:
@@ -693,6 +713,27 @@ def load_config(config_path: str | Path) -> BotConfig:
     if combat.mode not in {"bars", "pulse", "hunt"}:
         raise ValueError("combat.mode must be 'bars', 'pulse' or 'hunt'")
 
+    det_raw = _section(raw, "detector")
+    det_defaults = DetectorConfig()
+    roi = _region_from_value(det_raw.get("roi", list(det_defaults.roi)), "detector.roi")
+    detector = DetectorConfig(
+        enabled=bool(det_raw.get("enabled", False)),
+        model=str(det_raw.get("model", det_defaults.model)).replace("\\", "/"),
+        classes=tuple(str(c) for c in det_raw.get("classes", det_defaults.classes)),
+        input_size=int(det_raw.get("input_size", det_defaults.input_size)),
+        confidence=float(det_raw.get("confidence", det_defaults.confidence)),
+        iou=float(det_raw.get("iou", det_defaults.iou)),
+        every_n_frames=int(det_raw.get("every_n_frames", det_defaults.every_n_frames)),
+        backend=str(det_raw.get("backend", det_defaults.backend)).lower(),
+        roi=(roi.x, roi.y, roi.w, roi.h),
+        aim=bool(det_raw.get("aim", False)),
+        aim_radius_px=int(det_raw.get("aim_radius_px", det_defaults.aim_radius_px)),
+    )
+    if detector.backend not in {"auto", "opencv", "onnxruntime"}:
+        raise ValueError("detector.backend must be 'auto', 'opencv' or 'onnxruntime'")
+    if detector.input_size % 32 != 0:
+        raise ValueError("detector.input_size must be a multiple of 32")
+
     mode = str(raw.get("mode", "assist")).lower()
     if mode not in {"assist", "roam"}:
         raise ValueError("mode must be 'assist' or 'roam'")
@@ -713,6 +754,7 @@ def load_config(config_path: str | Path) -> BotConfig:
         death=death,
         routes=routes,
         combat=combat,
+        detector=detector,
     )
 
 

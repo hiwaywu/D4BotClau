@@ -146,6 +146,13 @@ def cmd_doctor(config_path: str) -> int:
             print(f"routes: {len(maps)} loaded; located in {obs.route.name!r} (match {obs.route.score:.2f})")
         else:
             print(f"routes: {len(maps)} loaded ({', '.join(m.name for m in maps)}); not located here")
+    if not config.detector.enabled:
+        print("detector: off (YOLO; see docs/YOLO.md)")
+    elif vision.detector is None:
+        print(f"detector: ENABLED but {config.detector.model} could not be loaded (train one with -Train)")
+    else:
+        found = ", ".join(f"{d.label} {d.confidence:.2f}" for d in obs.detections[:8]) or "nothing"
+        print(f"detector: {vision.detector.model_path.name} via {vision.detector.backend}; sees {found}")
     if config.death.enabled:
         hud = obs.screen.hud_score
         print(
@@ -769,6 +776,62 @@ def cmd_snap(config_path: str, folder: str, max_seconds: float) -> int:
     return 0
 
 
+def cmd_collect(config_path: str, name: str, every_s: float, max_minutes: float, min_change: float) -> int:
+    """Save gameplay frames for YOLO training while you play. No input is sent.
+
+    One frame every `every_s` seconds, only while the game is in front with
+    its HUD visible, and only if the view changed since the last saved frame.
+    """
+    from .dataset import FrameDeduper
+
+    config = load_config(config_path)
+    capture = ScreenCapture(config.capture)
+    vision = Vision(config)
+    session = f"{name}_{time.strftime('%Y%m%d_%H%M%S')}"
+    out = PACKAGE_ROOT / "data" / "yolo" / "raw" / session
+    out.mkdir(parents=True, exist_ok=True)
+    deduper = FrameDeduper(min_change)
+    print(f"Collecting frames for YOLO into {out}")
+    print("Play normally (Helltide, fights, loot, events, town). No input is sent. F8 finishes.\n")
+    started = time.monotonic()
+    last_save = 0.0
+    last_report = started
+    saved = skipped = 0
+    try:
+        while time.monotonic() - started < max_minutes * 60:
+            if emergency_stop_pressed(config.input.emergency_stop_key):
+                break
+            now = time.monotonic()
+            if now - last_save < every_s:
+                time.sleep(0.05)
+                continue
+            frame = capture.grab()
+            last_save = now
+            if not (frame.window and is_foreground(frame.window.hwnd)):
+                continue  # covered/unfocused: the capture would not show the game
+            image = frame.image
+            hud = vision.hud_score(image)
+            if float(image.mean()) < config.death.black_max_value or (
+                hud is not None and hud < config.death.hud_threshold
+            ):
+                continue  # loading screen, map, menu: nothing to learn from
+            if not deduper.keep(image):
+                skipped += 1
+                continue
+            saved += 1
+            cv2.imwrite(str(out / f"frame_{saved:05d}.jpg"), image, [cv2.IMWRITE_JPEG_QUALITY, 92])
+            if now - last_report >= 60.0:
+                last_report = now
+                print(f"  {saved} frames saved ({skipped} near-duplicates skipped)")
+    except KeyboardInterrupt:
+        pass
+    finally:
+        capture.close()
+    print(f"\nDone: {saved} frame(s) in {out}")
+    print("Next: label them with  .\\run.cmd -Label")
+    return 0
+
+
 def cmd_record(config_path: str, name: str, max_seconds: float | None) -> int:
     """Record a route: no input is sent. Walk the route yourself; F8 saves it."""
     from .minimap import walkable_mask
@@ -879,6 +942,13 @@ def build_parser() -> argparse.ArgumentParser:
     snap.add_argument("--config", default=str(_default_config()))
     snap.add_argument("--max-seconds", type=float, default=1800.0)
 
+    collect = sub.add_parser("collect", help="save gameplay frames for YOLO training while you play (no input sent)")
+    collect.add_argument("name")
+    collect.add_argument("--config", default=str(_default_config()))
+    collect.add_argument("--every-s", type=float, default=1.0)
+    collect.add_argument("--max-minutes", type=float, default=240.0)
+    collect.add_argument("--min-change", type=float, default=6.0, help="mean pixel change needed to keep a frame")
+
     record = sub.add_parser("record", help="record a route by walking it (no input sent)")
     record.add_argument("name")
     record.add_argument("--config", default=str(_default_config()))
@@ -929,6 +999,8 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_teach_stash(args.config)
         if args.command == "town":
             return cmd_town(args.config, args.enable_input, args.i_understand_ban_risk)
+        if args.command == "collect":
+            return cmd_collect(args.config, args.name, args.every_s, args.max_minutes, args.min_change)
         if args.command == "snap":
             return cmd_snap(args.config, args.folder, args.max_seconds)
         if args.command == "record":

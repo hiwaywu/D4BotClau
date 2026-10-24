@@ -127,6 +127,21 @@ nav:
   path_planning: true
   path_cell_px: 4
 
+# Optional YOLO detector (docs/YOLO.md): finds monsters/elites/loot/chests/
+# spawners in the game view itself. Train one first: -Collect, -Label, -Train.
+# Off until models/d4.onnx exists and enabled is true; check it with -Doctor and
+# a dry run with -Snapshots (boxes are drawn on the overlay) before aim: true.
+detector:
+  enabled: false
+  model: models/d4.onnx
+  classes: [monster, elite, loot, chest, spawner]   # order = label keys 1-5
+  input_size: 640            # must match training (-Train uses this)
+  confidence: 0.40
+  every_n_frames: 2
+  backend: auto              # onnxruntime-directml (GPU) if installed, else OpenCV (CPU)
+  aim: false                 # aim attacks at the detected monster nearest the minimap pack
+  aim_radius_px: 600
+
 # Recorded routes. Record one per Helltide zone (no input is sent):
 #   .\run.cmd -Record kehjistan_1     (stand on the waypoint, walk, F8 to save)
 # The bot locates itself on the stitched minimap, follows the path to its end

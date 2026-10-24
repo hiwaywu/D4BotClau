@@ -71,6 +71,18 @@ class DebugOverlay:
         self._minimap(frame, obs, brain, scale)
         for lx, ly, lw, lh in obs.loot_labels:
             cv2.rectangle(frame, (lx - 3, ly - 3), (lx + lw + 3, ly + lh + 3), (255, 255, 255), 2)
+        detection_colors = {
+            "monster": (0, 165, 255), "elite": (255, 0, 255), "loot": (255, 255, 255),
+            "chest": (0, 215, 255), "spawner": (0, 255, 0),
+        }
+        for det in obs.detections:
+            dx, dy, dw, dh = det.bbox
+            color = detection_colors.get(det.label, (200, 200, 200))
+            cv2.rectangle(frame, (dx, dy), (dx + dw, dy + dh), color, 2)
+            cv2.putText(
+                frame, f"{det.label} {det.confidence:.2f}", (dx, max(12, dy - 4)),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5 * scale, color, 1, cv2.LINE_AA,
+            )
 
         for enemy in obs.enemies:
             x, y, w, h = enemy.bbox

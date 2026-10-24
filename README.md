@@ -246,7 +246,7 @@ Enemy health bars are a much easier target than enemy bodies: they are small, ho
 
 ## YOLO / “any AI tool”?
 
-Short version: **YOLO is useful later, not the first move.** An LLM/VLM is the wrong tool for a 20 Hz control loop. See [docs/YOLO.md](docs/YOLO.md) for the honest comparison, data pipeline, and integration plan.
+An optional YOLO detector is built in (off by default): `.\setup.cmd -Yolo` once, then `.\run.cmd -Collect helltide` while you play, `.\run.cmd -Label` to draw boxes, `.\run.cmd -Train` to train and install `models/d4.onnx`, and `detector: enabled: true` in `config.yaml`. An LLM/VLM is the wrong tool for a 20 Hz control loop. See [docs/YOLO.md](docs/YOLO.md) for what it does, how much labelling it takes, and how to check it.
 
 ## Troubleshooting
 
@@ -279,10 +279,15 @@ d4-visual-bot/
   run.cmd / run.ps1      # doctor / calibrate / run
   tools/make_demo.py     # synthetic overlay preview
   tools/check_captures.py # run perception over saved screenshots (no game)
+  tools/yolo_label.py    # draw YOLO boxes on collected frames (-Label)
+  tools/yolo_dataset.py  # build the train/val split (by session)
+  tools/yolo_train.py    # train + export models/d4.onnx (-Train)
   src/d4bot/
     capture.py           # mss + Windows window/DPI handling
     vision.py            # globes, enemy bars, skill templates, demon buff, death
-    minimap.py           # walkable mask, ray clearance, motion tracking
+    minimap.py           # walkable mask, ray clearance, motion tracking, path planning
+    detector.py          # optional YOLO detector (ONNX via OpenCV / onnxruntime)
+    dataset.py           # YOLO frame collection, label files, dataset split
     brain.py             # assist/roam decisions
     controller.py        # pydirectinput + foreground/F8 gates
     calibrate.py         # interactive ROI/template capture
@@ -291,7 +296,7 @@ d4-visual-bot/
   tests/                 # synthetic-frame tests (no game needed)
   templates/demon_buff.png # demon-form buff icon (2560x1440)
   templates/skills/      # your ready-state icons (gitignored)
-  docs/YOLO.md           # when and how to add a detector
+  docs/YOLO.md           # optional YOLO detector: collect -> label -> train -> enable
   PLAN.md                # milestones and acceptance criteria
 ```
 

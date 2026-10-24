@@ -1,113 +1,105 @@
-# YOLO, LLMs, and other AI tools: what actually fits
+# YOLO detector
 
-## The short answer
+An optional object detector that looks at the **game view itself** instead of the
+minimap or the HUD. It is built into the bot and off by default.
 
-- **YOLO (a real-time object detector):** yes, it can work, especially for enemy bodies, elites, loot beams, and event objects. It is not magic and it is not the first thing to build.
-- **A chat LLM / vision-language model (GPT, Claude, Gemini, local VLM):** wrong tool for the control loop. Too slow, too expensive, too inconsistent at 20 decisions per second. Useful offline for labeling help, log analysis, and writing code.
-- **Classic OpenCV:** the best first tool for health/resource globes, skill cooldowns, enemy **health bars**, and UI anchors.
-- **A small classifier:** good if you only need “is this icon ready?” or “is this a loot beam?” — cheaper than a detector.
-- **Reinforcement learning:** not recommended. You would need a fast simulator or a huge amount of risky live play, and the reward is hard to define.
+## What it does for this bot
 
-## Why health bars beat enemy bodies
+Today the bot knows where monsters are only from **Subo's minimap dots**. That works,
+but it is coarse and leaves gaps:
 
-An enemy health bar is a small horizontal red/orange rectangle with a dark border. A few HSV thresholds plus contour shape filtering can find it at 20–60 fps on any CPU. No labels, no GPU, no training.
+| Today (colour rules) | With a trained detector |
+|---|---|
+| Aim = a guess: the dot's minimap direction times ~7.5 screen px per minimap px | `detector.aim: true` aims at the monster's actual body on screen |
+| Monsters are only known as minimap dots | Monsters seen on screen too (hunting still starts from Subo's dots; using boxes alone is a later step) |
+| Elites = small red minimap dots | `elite` boxes on the monster itself |
+| Loot = minimap stars + item-name text colour (false hits on banners, name plates) | `loot` boxes on the item on the ground |
+| Chests, the green spawners, events: invisible | `chest` / `spawner` classes, ready for the spawner idea in HANDOFF |
 
-A YOLO model sees the whole 3D scene: mob bodies at different distances, effects, terrain, other players, and the Helltide color palette. It can absolutely learn this, but you must teach it with thousands of labeled examples from **your** camera distance, resolution, HUD scale, and lighting.
+What it does **not** do: walls/terrain (still the minimap), deciding where to go (still
+the brain), or anything without labelled examples. It only knows what you teach it.
 
-## When YOLO is worth it
-
-Add a detector when you need a class that color/shape cannot separate:
-
-| Target | OpenCV first? | YOLO useful? |
-|---|---|---|
-| Health/resource globe | Yes, HSV fill | No |
-| Skill cooldown | Yes, template match | No |
-| Demon-form state | Yes, calibrated HUD glow | No |
-| Enemy health bar | Yes, thin red bar | Sometimes, for clutter |
-| Enemy body / elite | No | **Yes** |
-| Loot beam / item label | Partial (color) | **Yes** |
-| Event altar / objective | No | **Yes** |
-| Minimap player arrow | Yes, color/shape | Could be, but classic CV is easier |
-| Terrain / walls | No | Segmentation model, much harder |
-
-A practical hybrid:
+## The loop
 
 ```
-OpenCV: globes, cooldowns, death, minimap
-YOLO:   enemies/elites/loot/events (only when needed)
-Brain:  fuse both into one Observation
+.\setup.cmd -Yolo                 once: Ultralytics + torch (CUDA if an NVIDIA GPU) + onnxruntime-directml
+.\run.cmd -Collect helltide       play normally; saves ~1 frame/s (skips duplicates, menus, loading). F8 stops. No input sent.
+.\run.cmd -Label                  draw boxes (see below)
+.\run.cmd -Train                  builds the dataset, trains, exports models\d4.onnx
+config.yaml: detector: enabled: true
+.\run.cmd -Doctor                 "detector: d4.onnx via ...; sees monster 0.87, ..."
+.\run.cmd -MaxSeconds 60 -Snapshots data\yolo_check   dry run: boxes drawn on data\yolo_check\overlay_*.jpg
+config.yaml: detector: aim: true  only when the boxes look right
 ```
 
-## The part nobody mentions: labeling
+Repeat: collect more (especially where it was wrong), `-Label` (frames now open with the
+model's guesses already drawn - fix them instead of drawing from scratch), `-Train`.
+Each training keeps the previous model as `models/d4_<date>.onnx`.
 
-For a useful D4 detector you need roughly:
+Frames from a bot run also work: copy a `-Snapshots` folder's `raw_*.jpg` into
+`data\yolo\raw\<name>\`.
 
-- **1,000–3,000 frames** from real gameplay (not screenshots from a guide).
-- Frames sampled every 0.5–2 seconds, including combat, travel, town, death, and Helltide.
-- Bounding boxes for 3–6 classes. One class (`enemy`) is enough to start.
-- A labeling tool: Label Studio, CVAT, or Roboflow.
-- A train/val split by **session**, not by frame, so near-duplicate frames do not leak into validation.
+## Labelling
 
-At 5–15 seconds per box and several boxes per frame, 1,500 frames is a real weekend of labeling. That is the actual cost. Training itself is an hour on a modest GPU.
+`.\run.cmd -Label` opens the first frame without a label file.
 
-## Compute and latency
+- **Left-drag**: box with the current class. **Right-click** a box: delete it.
+- **1-5**: class - `monster`, `elite`, `loot`, `chest`, `spawner` (shown at the top).
+- **Space / Enter**: save, next frame. **b**: back. **u**: undo. **c**: clear. **s**: skip. **q**: quit.
 
-- YOLO nano/small at 640×640: often 30–60+ fps on an RTX 3060/4060; ~5–15 fps on CPU.
-- At 960×960, small enemies are easier to detect but latency rises.
-- Add capture (2–5 ms), pre/post-processing (3–10 ms), and the decision loop.
-- Keep the control loop at 15–20 Hz; a detector at 10 Hz is fine if you track boxes between inferences.
+Rules that make the model good:
+- Box **every** instance of a class in a frame, or none of that class at all. A monster
+  left unboxed teaches the model "that is not a monster".
+- Frames with nothing in them (town, empty ground, red Helltide scenery, fire, the
+  tiger/Subo) are saved with no boxes. They are what stops false alarms. Keep ~20%.
+- Box the monster's body, not its shadow or the effect around it.
+- Do not box the player, pets or Subo.
 
-Do not run a 7B vision-language model per frame. A single VLM call can take hundreds of milliseconds to seconds and cost money; it also gives different answers for the same frame.
+## How much
 
-## Integration plan for this repo
+- **Start: 300-500 labelled frames** from 3+ sessions -> first model. Expect it to be
+  rough; its job is to speed up labelling.
+- **Useful: 1,000-2,000 frames**, several Helltide zones, day/night, crowded and quiet.
+- Rare classes (chest, spawner) need ~100+ boxes each before they mean anything.
+  Collect near them on purpose.
 
-The code already separates perception (`vision.py`) from decisions (`brain.py`). To add YOLO:
+Labelling time is the real cost: roughly a frame every 10-20 s once the model pre-labels.
 
-1. Add `ultralytics` and `onnxruntime` (or `torch`) as optional dependencies.
-2. Create `src/d4bot/detector.py`:
+## Checking it
 
-```python
-class Detector:
-    def __init__(self, model_path: str, conf: float = 0.35):
-        from ultralytics import YOLO
-        self.model = YOLO(model_path)
-        self.conf = conf
+`-Train` prints precision/recall per class on **validation sessions** - whole sessions it
+never trained on, so the score predicts a new run. Aim for recall > 0.8 on `monster`
+before turning on `aim`. Then watch a dry run's overlays: boxes on scenery = add those
+frames as empty examples; missed monsters = label more like them.
 
-    def detect(self, frame):
-        result = self.model.predict(frame, conf=self.conf, verbose=False)[0]
-        boxes = []
-        for box in result.boxes:
-            x1, y1, x2, y2 = box.xyxy[0].tolist()
-            boxes.append({
-                "class": result.names[int(box.cls[0])],
-                "conf": float(box.conf[0]),
-                "bbox": (int(x1), int(y1), int(x2 - x1), int(y2 - y1)),
-            })
-        return boxes
+## Speed
+
+`input_size: 640`, YOLO nano. The bot runs it every 2nd frame (`every_n_frames`).
+
+- With `onnxruntime-directml` (installed by `-Yolo`): runs on any DirectX 12 GPU, much faster than the CPU (not measured on your PC yet).
+- Without it: OpenCV on the CPU, ~50-150 ms per run - usable but slows the loop.
+  Doctor shows which backend loaded.
+
+Training: about an hour for 1,000 frames on an NVIDIA GPU; CPU works for a few hundred
+frames but is slow (hours).
+
+## Files
+
+```
+src/d4bot/detector.py    load models/d4.onnx (OpenCV DNN or onnxruntime), letterbox, decode, NMS
+src/d4bot/dataset.py     frame dedupe, YOLO label files, session-based train/val split
+tools/yolo_label.py      the labelling window
+tools/yolo_dataset.py    build data/yolo/dataset + data.yaml (run by -Train)
+tools/yolo_train.py      Ultralytics training + ONNX export -> models/d4.onnx, d4.classes.txt
+data/yolo/raw/<session>/ collected frames + their .txt labels (not in git)
+runs/                    training runs (not in git)
 ```
 
-3. Convert detections to the same `Enemy` dataclass (or add a `kind` field).
-4. Fuse with the health-bar detections: prefer bars for targeting, bodies for “there is something over there.”
-5. Add a `--detector` flag and a confidence threshold; keep OpenCV as the fallback.
-6. Log every detection with frame/timestamp so you can replay mistakes.
+Ultralytics is AGPL-3.0 licensed - fine for personal use; it is only needed to train,
+not to play.
 
-## Training recipe (when you get there)
+## Why not a chat AI / VLM in the loop
 
-1. Record 20–30 minutes of Helltide at your final resolution/HUD.
-2. Extract 1 frame/second; deduplicate near-identical frames.
-3. Label 500 frames first, train a nano model, inspect failures.
-4. Add hard negatives: red barrels, blood effects, meteors, town NPCs, other players, UI.
-5. Label 1,500–3,000 frames total; retrain.
-6. Validate on a **different session** and a **different Helltide zone**.
-7. Measure:
-   - recall of enemies you actually attack,
-   - false positives per minute,
-   - detection latency,
-   - performance at night/day and in different biomes.
-8. Export ONNX for deployment if Ultralytics overhead matters.
-
-## The honest recommendation
-
-Build the OpenCV version first. It gives you a working combat assist in an evening, and it tells you whether the hard part is perception or movement. If enemy bars are good enough, you may never need YOLO. If they are not, you will have a labeled dataset and a baseline to beat — which is exactly the position you want before training.
-
-“Randomly attack and run” is a behavior, not a perception strategy. YOLO will not fix bad movement; it only tells you what is on screen.
+Too slow (hundreds of ms to seconds per frame), costs per call, and gives different
+answers for the same frame. Fine offline (reading logs, writing code); not for 10-20
+decisions per second.

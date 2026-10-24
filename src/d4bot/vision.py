@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 
 from .config import BotConfig, HsvRange, Region
+from .detector import Detection, Detector
 from .minimap import INVALID as MINIMAP_INVALID
 from .minimap import MinimapReading, MinimapTracker
 from .routes import RouteFix, RouteLocator, RouteMap, load_routes
@@ -87,6 +88,7 @@ class Observation:
     loot_labels: list[tuple[int, int, int, int]] = field(default_factory=list)  # orange item labels (x, y, w, h)
     route: RouteFix = field(default_factory=lambda: RouteFix(False))
     route_map: RouteMap | None = None
+    detections: list[Detection] = field(default_factory=list)  # YOLO (detector.enabled), else empty
 
     @property
     def black(self) -> bool:
@@ -197,6 +199,7 @@ class Vision:
                 log.info("Routes loaded: %s", ", ".join(m.name for m in maps))
             else:
                 log.info("Routes enabled but none recorded in %s", config.routes.folder)
+        self.detector = Detector.create(config.detector, config.project_root)
 
     def _load_template(self, relative: str | None) -> np.ndarray | None:
         if not relative:
@@ -251,6 +254,9 @@ class Vision:
         route = RouteFix(False)
         if self._routes is not None and minimap.valid:
             route = self._routes.update(self._crop(frame, self.config.regions["minimap"]), minimap.shift)
+        detections: list[Detection] = []
+        if self.detector is not None and not screen.black and not screen.no_hud:
+            detections = self.detector.detect(frame)
         return Observation(
             frame=frame,
             health=health,
@@ -269,6 +275,7 @@ class Vision:
             loot_labels=loot_labels,
             route=route,
             route_map=self._routes.active if self._routes is not None else None,
+            detections=detections,
         )
 
     def _loot_labels(self, frame: np.ndarray) -> list[tuple[int, int, int, int]]:

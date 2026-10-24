@@ -178,6 +178,17 @@ User asked what helps from https://github.com/qqtnn/qqt_diablo. It is a Lua plug
 - **Idle watchdog** (its Helltide script resets after a long time without casting). In `-Cycle`, no FIGHT/APPROACH/LOOT for `--idle-reset-min` (default 4, `-IdleResetMin` in run.ps1, 0 = off) ends the round like a stash trip: town -> teleport -> route.
 - Not taken: its task-manager structure (one task per tick, `shouldExecute/Execute`) - worth doing before adding spawners / revive / potions, but a refactor of `CombatBrain.decide` needs live runs to trust. Melee "move slightly past the target" - not needed while approach works. Evade, health-based targeting, auto-repair API - need game memory.
 
+## 3o. YOLO pipeline (2026-10-24, built offline, no real model yet)
+
+Optional on-screen object detector, off by default (`detector:` in config.yaml). Full guide: `docs/YOLO.md`.
+- **Collect:** `.\run.cmd -Collect <name>` - no input; ~1 frame/s while the game is in front with HUD visible, near-duplicates skipped -> `data/yolo/raw/<name>_<time>/`.
+- **Label:** `.\run.cmd -Label` (`tools/yolo_label.py`) - drag boxes, keys 1-5 = monster/elite/loot/chest/spawner, Space = save+next; once a model exists, frames open pre-labelled by it.
+- **Train:** `.\setup.cmd -Yolo` once (Ultralytics, CUDA torch if `nvidia-smi`, onnxruntime-directml), then `.\run.cmd -Train` - dataset split by **session** (`dataset.build_dataset`), YOLO11n, per-class precision/recall on held-out sessions, ONNX export (`simplify=False` so onnxruntime-directml is not clobbered) -> `models/d4.onnx` + `d4.classes.txt`; old model kept as `d4_<date>.onnx`.
+- **Run:** `detector.py` loads the ONNX with onnxruntime (DirectML/CUDA/CPU) if installed, else OpenCV DNN; every 2nd frame; `Observation.detections`; overlay draws boxes; Doctor prints backend + what it sees. `detector.aim: true` aims FIGHT attacks at the detected monster/elite nearest the minimap estimate (within `aim_radius_px`). Nothing else in the brain uses detections yet.
+- **Verified here:** synthetic dataset (3 sessions, 180 frames) -> `tools/yolo_train.py` on CPU -> val mAP50 0.995 -> exported ONNX loaded by `Detector` on OpenCV 4.14 and 5.0 and onnxruntime: boxes within 1-2px of truth, also on a 2560x1440 upscale. 30 ms per frame at 320 px on this server's CPU. Tests: `tests/test_detector.py` (decode/NMS/letterbox, labels, session split, dedupe, labeller, aim).
+- **Not verified:** anything on real D4 frames; DirectML speed on the user's GPU; `setup.ps1 -Yolo` on Windows (CUDA wheel index cu128 -> cu126 -> CPU fallback).
+- **Next:** user collects 300-500 frames over 3+ sessions and labels them; first model; check a dry run's overlays before `aim: true`.
+
 ### Where it stands (end of 2026-10-24 night session)
 - Works live: town + stash (Ichorfall), Warplan teleport, route recognition + following (marowen 0.99), hunting/looting (4.5 min: 50 packs, 14 loot, stuck 1), focus pause, no-Helltide retry.
 - Not yet seen live: the 5-min stash trip and return, a Helltide ending, a full hour; the icon fixes (sword, triangle) after the last run; path planning and the idle reset (3n). On the next run watch the overlay for green route lines and `goal ...px (route ...px)` in the log.
@@ -200,7 +211,7 @@ User asked what helps from https://github.com/qqtnn/qqt_diablo. It is a Lua plug
 2. **Health globe / potion by HP.** Purple cosmetic globe; still a blind 8s timer. Needs low-health captures.
 3. **Chests / events / Helltide boss.** None.
 4. **Revive + return.** On death the run just ends.
-5. **Optional YOLO**, see `docs/YOLO.md`. Probably unnecessary now that bars are detected correctly.
+5. **YOLO detector:** pipeline built (3o); needs collected + labelled frames for a first model.
 
 ## 6. File map
 
