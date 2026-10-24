@@ -1,0 +1,6 @@
+numpy>=1.26,<3
+opencv-python>=4.10,<5
+mss>=9,<11
+PyYAML>=6,<7
+pydirectinput>=1.0.4,<2
+pytest>=8,<9

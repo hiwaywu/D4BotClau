@@ -1,0 +1,16 @@
+.venv/
+.venv-test/
+.deps/
+.piptmp/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# Game screenshots and logs stay local (large, personal).
+logs/
+data/
+templates/skills/*.png
+!templates/skills/.gitkeep

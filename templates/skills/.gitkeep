@@ -1,0 +1,2 @@
+# Place skill templates here with:
+#   .\run.ps1 -Calibrate skill -SkillName skill_1

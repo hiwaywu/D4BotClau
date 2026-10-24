@@ -1,0 +1,294 @@
+# d4-visual-bot configuration
+#
+# Start here:
+#   1. Run .\setup.cmd once.
+#   2. Run .\run.cmd -Doctor
+#   3. Run .\run.cmd -Calibrate regions
+#   4. Run .\run.cmd -Calibrate sample   (stand at full health)
+#
+# Input is disabled by default. Enable it only with both:
+#   .\run.cmd -Debug -EnableInput -IAcceptBanRisk
+
+mode: roam              # assist = you move, bot aims + uses skills
+                        # roam   = bot also click-moves around (Helltide experiment)
+
+capture:
+  window_title: "Diablo IV"
+  mode: window          # window = capture game client only; monitor = whole screen
+  monitor: 1
+  fps: 20
+
+input:
+  # Input is always opt-in at the command line:
+  #   .\run.cmd -EnableInput -IAcceptBanRisk
+  require_foreground: true
+  emergency_stop_key: f8
+  potion_enabled: true
+  potion_mode: timer        # health globe is custom purple; use timer for now
+  potion_key: q
+  potion_threshold: 0.55
+  potion_interval_s: 1.2
+  potion_timer_s: 8.0       # press Q during combat, at most this often
+  action_gap_s: 0.035
+  aim_jitter_px: 4
+
+roam:
+  leg_interval_s: 4.0
+  turn_jitter_deg: 35      # less zigzag
+  click_distance_px: 650   # longer legs; clicks near the bottom barely move you
+  min_click_interval_s: 1.0
+  play_area_margin: 0.20   # keep clicks away from HUD edges
+  click_y_min: 0.30
+  click_y_max: 0.60        # stay out of the low-perspective bottom area
+  stuck_diff_threshold: 1.5
+  stuck_confirm_s: 2.0
+
+# All values are fractions of the captured game frame: x, y, width, height.
+# Calibrate these with: .\run.cmd -Calibrate regions
+# Measured from the actual 2560x1440 windowed client (Temis, HUD Medium).
+regions:
+  health_globe: [0.305, 0.815, 0.105, 0.140]
+  resource_globe: [0.695, 0.815, 0.095, 0.140]
+  skill_bar: [0.383, 0.895, 0.222, 0.070]
+  enemy_roi: [0.100, 0.080, 0.750, 0.620]   # excludes minimap and bottom HUD
+  center: [0.400, 0.350, 0.200, 0.250]
+  minimap: [0.8348, 0.0417, 0.1543, 0.1993]  # parchment area only, not the frame
+  buff_bar: [0.3900, 0.8000, 0.3100, 0.0650] # row of buff icons above the skill bar
+
+# How roam mode fights. Regular monsters show NO health bar, but the mercenary
+# Subo marks them on the minimap: yellow dots = monsters, red dots/skull = elites.
+# hunt = steer toward the nearest pack of dots; once a pack is within
+#   fight_radius_px (minimap px) of the player, stop and right-click toward it.
+#   No dots nearby = just walk, no attacking air. Needs Subo in the party.
+# pulse = old blind walk/fight rhythm (its kill signal is noisy; not recommended).
+combat:
+  mode: hunt
+  fight_radius_px: 40        # minimap px (~300 screen px: inside the burning ring). 28 walked past packs (run 7)
+  elite_fight_radius_px: 52
+  linger_s: 1.5
+  # Walk in before attacking: engage a pack at fight_radius_px, but only attack
+  # once it is within attack_range_px. This is the character's reach in minimap
+  # px (~7.5 screen px each): 14 ~= 100 screen px, close range. For a ranged
+  # character raise it (e.g. 30); >= fight_radius_px attacks right away.
+  attack_range_px: 18        # ~135 screen px; much tighter dots merge into the player arrow
+  approach_timeout_s: 2.5    # cannot get closer (wall in the way): attack from where we are
+  max_fight_s: 10.0          # a dot that will not die in 10s is a map icon -> ignore that spot
+  ignore_s: 60.0
+  hunt_weight: 1.2
+  screen_per_minimap_px: 7.5 # measured run 7: dot 28px away = monster ~210 screen px away
+  aim_min_px: 120
+  aim_max_px: 420
+  # Loot: a yellow STAR on the minimap = a legendary/unique drop: walk to it.
+  # Any item label (white/blue/yellow/orange/gold text on D4's dark label box)
+  # within loot_label_radius_px of the player gets clicked - the user's loot
+  # filter decides what shows a label, so everything shown is wanted. Health-bar targeting is off in
+  # hunt mode (it attacked the orange-bordered item pickup icon, run 8).
+  loot_enabled: true
+  loot_range_px: 140
+  loot_near_px: 35
+  loot_label_radius_px: 650  # screen px at 1440p (a real label sat 524px away)
+  loot_weight: 2.5
+  loot_timeout_s: 5.0        # not picked up by then (inventory full, or a name plate/banner) -> ignore 120s
+  star_threshold: 0.70       # star template: real stars 0.87-0.91, non-stars <= 0.45
+  walk_s: 2.5
+  fight_s: 1.2
+  fight_max_s: 8.0
+  kill_extend_s: 1.5
+  aim_distance_px: 220
+  sweep_deg: 35
+  kill_region: [0.7420, 0.1270, 0.0250, 0.0240]   # cinder counter under the flame icon
+  kill_diff: 10.0
+
+# Minimap navigation (roam mode). Steers toward open (beige) minimap ground,
+# away from red Helltide edges/cliffs, detects stuck from minimap motion, and
+# avoids re-walking places it visited in the last memory_s seconds.
+# Falls back to the old random roam when the minimap is not readable.
+nav:
+  enabled: true
+  rays: 24
+  min_clearance: 0.30
+  click_interval_s: 0.8
+  click_distance_px: 520     # at 1440p
+  player_x: 0.50
+  player_y: 0.48
+  y_scale: 0.75              # isometric squash for up/down clicks
+  click_y_max: 0.78
+  rotation_deg: 0.0          # minimap is camera-aligned in D4; learned live if off
+  learn_rotation: true
+  stuck_window_s: 1.6
+  stuck_px: 3.0              # minimap px moved in stuck_window_s below this = stuck
+  memory_s: 90.0
+  revisit_weight: 0.45
+  continuity_weight: 0.35
+
+# Recorded routes. Record one per Helltide zone (no input is sent):
+#   .\run.cmd -Record kehjistan_1     (stand on the waypoint, walk, F8 to save)
+# The bot locates itself on the stitched minimap, follows the path to its end
+# (lead it to a big open area), then hunts freely within leash_px of the end.
+# A route that ends where it started is looped instead.
+routes:
+  enabled: true
+  folder: routes
+  weight: 2.0
+  lookahead: 5
+  leash_px: 140
+
+# Death / loading detection. The real D4 death screen ("YOU HAVE DIED",
+# "Revive at Checkpoint") is darkened but coloured, and the whole HUD is gone.
+# HUD missing -> no input at once (also menus/cutscenes); missing confirm_s
+# -> treated as death: screenshot saved to data/, run stops (action: stop).
+death:
+  enabled: true
+  action: stop
+  confirm_s: 2.0
+  hud_template: templates/hud_key1.png      # the "1" key label under the skill bar
+  hud_region: [0.3900, 0.9500, 0.1600, 0.0500]
+  hud_threshold: 0.70                       # present 0.97-1.00, missing 0.34-0.41
+  max_saturation: 14.0       # backup: fully grey screen
+  black_max_value: 12.0
+
+globe:
+  # HSV ranges. Red wraps around 0/180, hence two ranges.
+  health_hsv:
+    - [[0, 110, 70], [10, 255, 255]]
+    - [[170, 110, 70], [180, 255, 255]]
+  # Broad set so this works for multiple classes. Calibrate if needed.
+  resource_hsv:
+    - [[90, 70, 70], [135, 255, 255]]
+    - [[20, 80, 80], [38, 255, 255]]
+    - [[135, 55, 55], [170, 255, 255]]
+    - [[0, 100, 60], [12, 255, 255]]
+    - [[170, 100, 60], [180, 255, 255]]
+  health_full_ratio: 0.42   # tune with `calibrate sample` at full health
+  resource_full_ratio: 0.42
+  empty_ratio: 0.015
+  smoothing: 0.35
+  death_confirm_s: 120.0  # purple globe gives false deaths; user watches F8
+
+# Enemy health bars (red/orange). TEAL bars are FRIENDLY: the summoned tiger
+# (6px) and the mercenary Subo (9px). Never add teal here - a live run spent
+# 20s right-clicking the tiger.
+enemy:
+  hsv:
+    - [[0, 110, 70], [10, 255, 255]]
+    - [[170, 110, 70], [180, 255, 255]]
+    - [[10, 120, 90], [25, 255, 255]]
+  exclude:
+    - [0.7300, 0.0000, 0.1100, 0.2100]   # Helltide timer, cinders, threat meter
+  min_width: 40                          # real bars are ~80px at 1440p; fire specks are ~15
+  max_width: 420
+  min_height: 2
+  max_height: 8                          # monster bars are 6px; mercenary (Subo) bar is 9px, labels ~21px
+  min_aspect: 2.0
+  max_aspect: 18.0
+  min_fill: 0.45
+  persistence_frames: 2
+  track_radius_px: 28
+  aim_offset_y: 0.035                    # bar floats ~50px above the body at 1440p
+
+# Warlock demon-form gate.
+# glow (default): in demon form the frames of READY skill icons burn orange.
+#   Skills on cooldown do NOT burn, and in human form no frame burns at all
+#   (0.00-0.07). So demon = ANY of slots 1-4 burning. (Requiring 2 burning
+#   slots failed live: 1/4 on cooldown read as human and the bot pressed 2.)
+#   Not burning -> wait the 11s cooldown -> press 2 -> confirm it burns.
+#   Detects the starting form by itself; -StartHuman/-StartDemon are not needed.
+# buff: horned-skull buff icon. DO NOT USE: live run showed it is a stack buff
+#   that comes and goes while you stay in demon form.
+# toggle_state (old): start human -> press 2 -> assume demon; slot 2 going dark
+#   = demon ended. Needs -StartHuman / -StartDemon.
+form:
+  enabled: true
+  mode: glow
+  glow_slots:                # outer box of each skill icon (2560x1440, HUD Medium)
+    - [0.4031, 0.9063, 0.0297, 0.0521]   # slot 1
+    - [0.4359, 0.9063, 0.0297, 0.0521]   # slot 2
+    - [0.4688, 0.9063, 0.0297, 0.0521]   # slot 3
+    - [0.5016, 0.9063, 0.0297, 0.0521]   # slot 4
+  glow_min_slots: 1
+  glow_threshold: 0.18       # burning frames 0.31-0.38, plain 0.00-0.07
+  buff_template: templates/demon_buff.png
+  buff_threshold: 0.70
+  toggle_confirm_s: 3.0
+  max_failed_toggles: 2
+  act_while_human: true     # soak run 10: demon drops in quiet areas; keep hunting meanwhile
+  buff_off_confirm_s: 1.0    # the icon blinks before it expires; ignore gaps shorter than this
+  toggle_key: "2"          # the skill that enters/leaves demon form
+  toggle_skill: skill_2    # used for its ready/cooldown template
+  roi: [0.4200, 0.8950, 0.0370, 0.0700]   # slot 2 icon
+  metric: orange_ratio     # orange_ratio or brightness
+  ready_threshold: 0.25    # above = icon ready, below = cooldown/dark
+  demon_threshold: 0.25    # used by the overlay's READY label
+  higher_is_demon: true
+  assume_human_at_start: true    # start the bot in human form, outside town
+  hysteresis: 0.03
+  confirm_frames: 3
+  post_toggle_grace_s: 1.0
+  retry_interval_s: 2.0   # human: press 2 this often (on cooldown it does nothing)
+  fallback_cooldown_s: 1.0  # wait after demon ends before the first press (was 11; slot 2 is ready sooner)
+  toggle_requires_ready: true
+
+# Skill bar, left to right (D4: slots 1-4 are keys, 5/6 are mouse buttons).
+# This matches the "Blazing Scream" bar in the screenshots:
+#   1 = cooldown nuke, 2 = demon toggle, 3 = mount/manual, 4 = cooldown,
+#   5 = unused, 6 = spam attack (right mouse).
+# Capture a ready-state icon with: .\run.cmd -Calibrate skill -SkillName skill_1
+skills:
+  - name: skill_1
+    key: "1"
+    enabled: true
+    utility: true          # cooldown/aura; fired on a timer, not as an attack
+    utility_interval_s: 15.0
+    priority: 0
+    requires_enemy: false
+    min_interval_s: 0.30
+    fallback_cooldown_s: 15.0
+    template: "templates/skills/skill_1_ready.png"
+    threshold: 0.16
+  - name: skill_2
+    key: "2"
+    enabled: false          # handled by the form gate, not the normal rotation
+    priority: 0
+    requires_enemy: false
+    min_interval_s: 1.0
+    fallback_cooldown_s: 11.0
+    template: "templates/skills/skill_2_ready.png"
+    threshold: 0.16
+  - name: skill_3
+    key: "3"
+    enabled: false          # tiger summon / mount toggle; press manually only
+    priority: 0
+    requires_enemy: false
+    min_interval_s: 1.0
+    fallback_cooldown_s: 1.0
+    template: "templates/skills/skill_3_ready.png"
+    threshold: 0.16
+  - name: skill_4
+    key: "4"
+    enabled: true
+    utility: true          # cooldown/aura; fired on a timer, not as an attack
+    utility_interval_s: 15.0
+    priority: 0
+    requires_enemy: false
+    min_interval_s: 0.50
+    fallback_cooldown_s: 15.0
+    template: "templates/skills/skill_4_ready.png"
+    threshold: 0.16
+  - name: skill_5
+    key: "mouse_left"
+    enabled: false          # unused / manual
+    priority: 0
+    requires_enemy: true
+    min_interval_s: 0.30
+    fallback_cooldown_s: 1.0
+    template: "templates/skills/skill_5_ready.png"
+    threshold: 0.16
+  - name: skill_6
+    key: "mouse_right"      # last slot: the nonstop spam attack
+    enabled: true
+    priority: 0
+    requires_enemy: true
+    min_interval_s: 0.12
+    fallback_cooldown_s: 0.0
+    template: "templates/skills/skill_6_ready.png"
+    threshold: 0.16
