@@ -1,6 +1,6 @@
 # HANDOFF — d4-visual-bot
 
-**Status:** full Helltide cycle built: town + stash → Warplan teleport → follow recorded route → farm → repeat. Each part works live on its own; the full cycle has not yet completed a round live. Not safe to leave unattended.
+**Status:** full Helltide cycle built: town + stash → Warplan teleport → follow recorded route → farm → repeat. First full live round worked (2026-10-24 01:09): stash -> teleport -> route located -> farming. Not yet run for a whole Helltide or across a stash trip. Not safe to leave unattended.
 **Last updated:** 2026-10-24
 **Repo:** https://github.com/hiwaywu/D4BotClau (private). Push after every change; update this file in the same commit.
 **Project folder:** `C:\AI STUFF\Claude\Diablo4\d4-visual-bot` (the old copy in `OneDrive\Documents\deepseek-harness\default-workspace\d4-visual-bot` is stale)
@@ -162,6 +162,8 @@ Commands: `.\run.cmd -Helltide -EnableInput -IAcceptBanRisk` (teleport only), ad
 
 - Live cycle 00:53: town + stash OK, teleport landed at a snowy waypoint (Desolate Highlands; the Helltide had moved) — judged before the HUD faded in, then the bot clicked the **waypoint's name label as loot**, which opened the map, and the hidden HUD read as death. Fixed: arrival waits for the HUD (`hud_key1` template) before judging; no loot clicks for 8s after landing (`brain.loot_hold_until`); in the cycle, "HUD gone" with the map open → Esc and keep farming.
 - **No Helltide up, live 00:58:** clicking Teleport does nothing (no loading screen, chat "Sanctuary is at peace presently…"). The cycle now treats that, like landing back in Ichorfall, as "no Helltide": wait 60s, retry (up to 20 min).
+
+- **First full live round (01:09):** T -> Ichorfall -> stash (bags already empty) -> Warplan teleport -> landed in the Helltide (9s) -> route **marowen located (0.99)** -> followed it -> farmed: 7 packs, 6 loot clicks, stuck 0 in 60s. Human for the first 12s after landing (demon cooldown), route walking continued meanwhile. User pressed F8 after 1 min. Not yet seen: the 5-min stash trip back and forth, a Helltide ending, a full hour.
 
 ## 4. Not verified / do not trust yet
 
