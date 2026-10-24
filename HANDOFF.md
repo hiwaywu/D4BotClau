@@ -160,6 +160,9 @@ Commands: `.\run.cmd -Helltide -EnableInput -IAcceptBanRisk` (teleport only), ad
 - User: steps were too fast → ~1–1.5s pauses between stash close, map open, Teleport click, Accept.
 - Live cycle attempts so far: (1) app quit while waiting for focus; (2) user clicked away → misread as "no Helltide" (fixed: pause on focus loss); (3) started in Kyovashad, T did nothing (fixed: skip stash); (4) stash OK, teleport landed in Kyovashad but was judged a failure (fixed: arrival check). Next: a full live round.
 
+- Live cycle 00:53: town + stash OK, teleport landed at a snowy waypoint (Desolate Highlands; the Helltide had moved) — judged before the HUD faded in, then the bot clicked the **waypoint's name label as loot**, which opened the map, and the hidden HUD read as death. Fixed: arrival waits for the HUD (`hud_key1` template) before judging; no loot clicks for 8s after landing (`brain.loot_hold_until`); in the cycle, "HUD gone" with the map open → Esc and keep farming.
+- **No Helltide up, live 00:58:** clicking Teleport does nothing (no loading screen, chat "Sanctuary is at peace presently…"). The cycle now treats that, like landing back in Ichorfall, as "no Helltide": wait 60s, retry (up to 20 min).
+
 ## 4. Not verified / do not trust yet
 
 - **Run with input.** Not done yet. Start with `-EnableInput -IAcceptBanRisk -MaxSeconds 60 -Snapshots data\live1`. Watch: it presses `2` only after the buff has been gone ~11s, it walks along paths, `rot` stays near 0, stuck count stays low.

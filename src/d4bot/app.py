@@ -219,6 +219,7 @@ def _farm(
     snapshot_dir: str | Path | None = None,
     snapshot_every_s: float = 3.0,
     end_check=None,  # type: ignore[no-untyped-def]
+    loot_hold_s: float = 0.0,
 ) -> str:
     """The farming loop. Returns why it ended.
 
@@ -228,6 +229,7 @@ def _farm(
     capture = ScreenCapture(config.capture)
     vision = Vision(config)
     brain = CombatBrain(config, live=input_enabled)
+    brain.loot_hold_until = time.monotonic() + loot_hold_s
     controller = InputController(config.input, enabled=input_enabled)
     overlay = DebugOverlay(config) if debug else None
     # Snapshots save the overlay to disk instead of a window, so nothing can
@@ -643,7 +645,10 @@ def cmd_cycle(config_path: str, enable_input: bool, accept_risk: bool, max_hours
                 result = step(_run_helltide_teleport, True)
                 if result.ok:
                     break
-                if "not in a Helltide" not in result.reason or waited >= 20 * 60:
+                # No Helltide up: the Teleport either does nothing ("Sanctuary is at
+                # peace", no loading screen; live 00:58) or lands back in Ichorfall.
+                no_helltide = "not in a Helltide" in result.reason or "no loading screen" in result.reason
+                if not no_helltide or waited >= 20 * 60:
                     log.warning("Cycle: teleport failed (%s); stopping", result.reason)
                     return 1
                 log.info("Cycle: no Helltide right now; trying again in 60s")
@@ -679,8 +684,21 @@ def cmd_cycle(config_path: str, enable_input: bool, accept_risk: bool, max_hours
                 return None
 
             log.info("Cycle %d: farming", cycles)
-            reason = _farm(config, input_enabled=True, end_check=end_check)
+            reason = _farm(config, input_enabled=True, end_check=end_check, loot_hold_s=8.0)
             log.info("Cycle %d: farm ended: %s", cycles, reason)
+            for _ in range(3):
+                if not reason.startswith("HUD gone"):
+                    break
+                frame = io.grab()
+                if not helltide.seen(frame, "teleport_button"):
+                    break
+                # Live: a click on the waypoint opened the map. Not a death.
+                log.info("Cycle: the map was open (not a death); closing it and farming on")
+                io.send([__import__("d4bot.brain", fromlist=["Action"]).Action(kind="press", key="esc")])
+                if not wait(1.5):
+                    return 1
+                reason = _farm(config, input_enabled=True, end_check=end_check, loot_hold_s=8.0)
+                log.info("Cycle %d: farm ended: %s", cycles, reason)
             if not (reason.startswith("Helltide ended") or reason.startswith("stash trip")):
                 print(f"Cycle stopped: {reason}")
                 return 0 if reason.startswith("F8") else 1

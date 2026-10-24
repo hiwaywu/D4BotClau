@@ -94,6 +94,7 @@ class CombatBrain:
         self._ignored_loot: list[tuple[float, float, float]] = []
         self._ignored_screen: list[tuple[float, int, int]] = []  # screen-fixed UI text
         self.loot_clicks = 0
+        self.loot_hold_until = 0.0
         self._ignored: list[tuple[float, float, float]] = []  # (expires at, world x, world y)
         self.packs_engaged = 0
 
@@ -571,6 +572,8 @@ class CombatBrain:
 
     def _loot(self, obs: Observation, now: float, actions: list[Action], notes: list[str]) -> Decision | None:
         """Walk to a minimap loot star; when close, click the item label on screen."""
+        if now < self.loot_hold_until:
+            return None
         combat = self.config.combat
         px, py = obs.minimap.position
         self._ignored_loot = [entry for entry in self._ignored_loot if entry[0] > now]

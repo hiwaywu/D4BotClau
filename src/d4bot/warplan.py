@@ -132,6 +132,20 @@ class WarplanRunner:
         self._sleep = sleep
         self._clock = clock
         self._debug = debug or (lambda frame, label: None)
+        root = Path(__file__).resolve().parents[2]
+        self._hud = cv2.imread(str(root / "templates" / "hud_key1.png"), cv2.IMREAD_GRAYSCALE)
+
+    def _hud_visible(self, frame: np.ndarray) -> bool:
+        """The "1" skill-key label under the skill bar (same check as death detection)."""
+        h, w = frame.shape[:2]
+        sx, sy = w / BASE_W, h / BASE_H
+        t = self._hud
+        if abs(sx - 1.0) > 0.01:
+            t = cv2.resize(t, (max(4, int(t.shape[1] * sx)), max(4, int(t.shape[0] * sy))))
+        roi = cv2.cvtColor(frame[int(1368 * sy) : int(1440 * sy), int(998 * sx) : int(1408 * sx)], cv2.COLOR_BGR2GRAY)
+        if roi.shape[0] < t.shape[0] or roi.shape[1] < t.shape[1]:
+            return False
+        return float(cv2.minMaxLoc(cv2.matchTemplate(roi, t, cv2.TM_CCOEFF_NORMED))[1]) >= 0.7
 
     def _act(self, **kwargs) -> None:  # type: ignore[no-untyped-def]
         from .brain import Action
@@ -197,6 +211,10 @@ class WarplanRunner:
         if self._wait_for(lambda f: not vision.loading(f), cfg.arrive_timeout_s) is None:
             return WarplanResult(False, "stuck on a loading screen")
         self._sleep(cfg.settle_s)
+        # Live: the landing was judged on a frame with the HUD still fading in.
+        if self._hud is not None:
+            self._wait_for(self._hud_visible, 15.0, poll=0.2)
+            self._sleep(1.0)
         arrived = self._grab()
         if vision.seen(arrived, "helltide_label"):
             self._debug(arrived, "w4_helltide")
