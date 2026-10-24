@@ -124,6 +124,21 @@ def monster_packs(
         n_y, y_labels = cv2.connectedComponents(monster)
         for i in set(np.unique(y_labels[near_icon > 0]).tolist()) - {0}:
             monster[y_labels == i] = 0
+    # Same for yellow: monster dots are 18-24 px. Every yellow blob over ~45 px
+    # on 11k live minimap blobs was an icon (event flames, gem-marker tips, the
+    # orange objective triangle the bot got stuck on). Drop those, and any red
+    # dot stuck to one (the triangle carries a small red dot).
+    n_y, y_labels, y_stats, _ = cv2.connectedComponentsWithStats(monster)
+    big_yellow = np.zeros_like(monster)
+    for i in range(1, n_y):
+        if y_stats[i][cv2.CC_STAT_AREA] > config.max_monster_dot_px:
+            big_yellow[y_labels == i] = 255
+    if big_yellow.any():
+        monster = cv2.bitwise_and(monster, cv2.bitwise_not(big_yellow))
+        near_icon = cv2.dilate(big_yellow, np.ones((9, 9), np.uint8))
+        n_r, r_labels = cv2.connectedComponents(elite)
+        for i in set(np.unique(r_labels[near_icon > 0]).tolist()) - {0}:
+            elite[r_labels == i] = 0
     dots = cv2.bitwise_or(monster, elite)
     n, labels_dots, stats, centers = cv2.connectedComponentsWithStats(dots)
     # A yellow star sits behind the player arrow (the player's own marker,

@@ -169,6 +169,14 @@ Commands: `.\run.cmd -Helltide -EnableInput -IAcceptBanRisk` (teleport only), ad
 
 - **Live cycle 01:19 (after the sword fix):** stash -> teleport -> marowen route (0.99) -> 265s farming: **50 packs, 14 loot clicks, stuck 1**, demon drops recovered in 3-8s, a few uncleared dots dropped after 10s. User clicked away twice (paused correctly) then F8 at 4.5 min - just before the 5-min stash trip, which is still untested live.
 
+- User: the bot got stuck on an **orange triangle objective icon** (with a small red dot attached). Measured 11k yellow blobs on live minimaps: monster dots 18-24 px; every blob over ~45 px was an icon (event-marker flames, the yellow tips of green-gem markers). Yellow blobs > `nav.max_monster_dot_px` (44) are now icons, and red dots touching them are dropped too. Test helper dots shrunk to real size (radius 3).
+
+### Where it stands (end of 2026-10-24 night session)
+- Works live: town + stash (Ichorfall), Warplan teleport, route recognition + following (marowen 0.99), hunting/looting (4.5 min: 50 packs, 14 loot, stuck 1), focus pause, no-Helltide retry.
+- Not yet seen live: the 5-min stash trip and return, a Helltide ending, a full hour; the icon fixes (sword, triangle) after the last run.
+- Routes recorded: kyovashad, marowen. Other Helltide towns need `.un.cmd -Record <town>` the first time they come up (the cycle stops with "no recorded route for this town").
+- **Next ideas (user):** the green-leaf **spawner icons** on the minimap — touching one makes monsters spawn nonstop around it; the bot could walk to one, interact, and fight there (may be seasonal). Then: auto-revive after death; health-based potions.
+
 ## 4. Not verified / do not trust yet
 
 - **Run with input.** Not done yet. Start with `-EnableInput -IAcceptBanRisk -MaxSeconds 60 -Snapshots data\live1`. Watch: it presses `2` only after the buff has been gone ~11s, it walks along paths, `rot` stays near 0, stuck count stays low.

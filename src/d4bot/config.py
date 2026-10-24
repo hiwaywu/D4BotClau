@@ -219,6 +219,7 @@ class NavConfig:
     pack_join_px: int = 14            # dots closer than this are one pack
     min_dot_px: int = 4               # smaller blobs are noise
     max_elite_dot_px: int = 60        # bigger red shapes are map icons, not elites
+    max_monster_dot_px: int = 44      # bigger yellow shapes are map icons, not monsters
     rays: int = 24
     ray_start_px: int = 14            # skip the player arrow
     min_clearance: float = 0.30       # fraction of the ray length that must be open

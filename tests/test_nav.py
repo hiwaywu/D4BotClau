@@ -470,7 +470,7 @@ def _dot(frame: np.ndarray, dx: int, dy: int, colour=(20, 150, 235)) -> None:
     """Draw a Subo-style monster dot at an offset from the minimap centre."""
     x, y, w, h = MINIMAP.pixels(W, H)
     centre = (x + w // 2 + dx, y + h // 2 + dy)
-    cv2.circle(frame, centre, 4, colour, -1)
+    cv2.circle(frame, centre, 3, colour, -1)   # ~29 px, like real dots (18-24 px)
     cv2.circle(frame, centre, 5, (30, 30, 30), 1)
 
 
