@@ -26,18 +26,17 @@ Needs: Warplan next activity = Helltide, Subo in the party, 2560x1440 windowed, 
 
 **For Claude:** the user said "I have no idea what to do; when I get to my home PC, tell me exactly what to do". Walk them through the steps below **one step at a time**: give the exact command, say what they should see, wait for them to report (paste the console output, `logs\session.log` lines, or screenshots), and fix problems before moving on. Do not dump the whole list at once. Commands run in PowerShell in the project folder. After each step, record the result in this file (section 3 style) and push.
 
-The new work since the last live run is on branch **`ccr-43ec7177-fnszk1`** (unless it has been merged into `main` - check with `git log origin/main --oneline -3`; if the top commits mention YOLO/path planning, use `main`).
+All new work is merged into **`main`** (2026-10-24). The user now works locally on the home PC: commit and push to `main` there.
 
 ### Step 1 - Get the new code (2 min)
 ```powershell
 cd "C:\AI STUFF\Claude\Diablo4\d4-visual-bot"
 git status                       # should be clean; if not, ask the user before touching anything
-git fetch origin
-git checkout ccr-43ec7177-fnszk1 # or: git checkout main; git pull
-git pull
+git checkout main
+git pull                         # brings in path planning, idle reset, YOLO pipeline, this checklist
 .\setup.cmd                      # refresh dependencies (safe to rerun)
 ```
-Expect: setup ends with "Setup complete." If `git checkout` complains about local changes, stop and look at them with the user.
+Expect: `git pull` lists new files (`CLAUDE.md`, `src/d4bot/detector.py`, `tools/yolo_*.py`, ...) and setup ends with "Setup complete." If `git pull` complains about local changes, stop and look at them with the user.
 
 ### Step 2 - Doctor (1 min, no input sent)
 Start Diablo IV (2560x1440 windowed, HDR off), stand in a Helltide or town, game window on top. Then:
