@@ -167,6 +167,8 @@ Commands: `.\run.cmd -Helltide -EnableInput -IAcceptBanRisk` (teleport only), ad
 
 - User: the bot got stuck attacking the **red sword icon** on the minimap (a map marker, not an enemy). Red blobs bigger than `nav.max_elite_dot_px` (60 px area; real elite dots are 11-24) are now ignored, plus any yellow blob touching one (the event icon's flame). This also drops the big red skull icon; only small red dots count as elites.
 
+- **Live cycle 01:19 (after the sword fix):** stash -> teleport -> marowen route (0.99) -> 265s farming: **50 packs, 14 loot clicks, stuck 1**, demon drops recovered in 3-8s, a few uncleared dots dropped after 10s. User clicked away twice (paused correctly) then F8 at 4.5 min - just before the 5-min stash trip, which is still untested live.
+
 ## 4. Not verified / do not trust yet
 
 - **Run with input.** Not done yet. Start with `-EnableInput -IAcceptBanRisk -MaxSeconds 60 -Snapshots data\live1`. Watch: it presses `2` only after the buff has been gone ~11s, it walks along paths, `rot` stays near 0, stuck count stays low.
