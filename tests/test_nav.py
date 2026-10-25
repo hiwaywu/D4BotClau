@@ -598,6 +598,23 @@ def _label(frame: np.ndarray, x: int, y: int) -> None:
     cv2.putText(frame, "Volatile Primordial Dust", (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (40, 165, 235), 2)
 
 
+def test_red_label_is_loot_and_zone_banner_is_not(tmp_path: Path, clock: Clock) -> None:
+    from d4bot.config import CombatConfig
+
+    config = _config(tmp_path, combat=CombatConfig(mode="hunt"))
+    world, _ = _maze()
+    frame = _frame(world, np.array([800.0, 700.0]))
+    # Red "Amulet" (live run 2: missed; ~97px wide at 1440p).
+    cv2.rectangle(frame, (892, 392), (1020, 428), (25, 22, 20), -1)
+    cv2.putText(frame, "Amulet", (900, 420), cv2.FONT_HERSHEY_TRIPLEX, 0.85, (40, 30, 225), 2, cv2.LINE_AA)
+    # Zone-name banner, centred at y 799, 19px tall (live run 1: clicked 8x).
+    cv2.rectangle(frame, (1110, 786), (1450, 812), (25, 22, 20), -1)
+    cv2.putText(frame, "KAREKA FLOODPLAIN", (1120, 806), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (225, 225, 225), 2)
+    labels = Vision(config).observe(frame).loot_labels
+    assert any(abs(x - 900) < 20 and abs(y - 400) < 20 for x, y, _, _ in labels)
+    assert not any(abs(y + h / 2 - 799) < 10 for _, y, _, h in labels)
+
+
 def test_star_is_loot_not_a_monster_pack(tmp_path: Path, clock: Clock) -> None:
     from d4bot.config import CombatConfig
 

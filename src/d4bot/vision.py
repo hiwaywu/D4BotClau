@@ -303,7 +303,7 @@ class Vision:
         labels = []
         for i in range(1, n):
             x, y, w, h, _ = stats[i]
-            if not (90 * scale <= w <= 600 * scale and 14 * scale <= h <= 40 * scale and w >= 4 * h):
+            if not (80 * scale <= w <= 600 * scale and 14 * scale <= h <= 40 * scale and w >= 3.5 * h):
                 continue
             box_text = text[y : y + h, x : x + w] > 0
             fill = float(box_text.mean())

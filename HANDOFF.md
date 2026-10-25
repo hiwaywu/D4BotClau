@@ -64,6 +64,8 @@ If it walks into walls more than before: set `nav: path_planning: false` in `con
 
 **Run 1 2026-10-25 00:31 (Kareka Floodplain, new Helltide, no recorded route):** 234s, 10 packs, 33 loot clicks, stuck 12 (worse than soak 14). Path planning did run (`goal 57px (route 83px)`, `goal 144px (route 198px)`). Three bugs found and fixed (section 3p). **Redo Step 3 once** with the fixes before Step 4.
 
+**Run 2 2026-10-25 00:45 (Path of Desperation, with the 3p fixes):** 179s until F8: **stuck 0**, ~22 packs, 7 loot clicks, demon throughout, no false route, no banner clicks. Missed a red "Amulet" label (fixed, 3q). Near the end the game window changed to 1280x720 (capture 2560x954 -> HUD read as missing twice). **Step 3 passed.** Restore 2560x1440 windowed before Step 4.
+
 ### Step 4 - Use the full cycle (as long as you like, watched)
 This is the normal way to run it. No minimum length - stop with F8 whenever.
 ```powershell
@@ -292,6 +294,11 @@ New Helltide, no recorded route. 234s: 10 packs, 33 loot clicks, stuck 12, demon
 - **Zone-name banner clicked as loot** (8x): the "ELDERWOOD GROVE" / "KAREKA FLOODPLAIN" banner shown when entering a sub-zone is boxed white words on dark, always centred at y 799 (0.555 H), 19px tall. Labels there with h <= 21 within 330px of centre are dropped; all banner hits in the run's 75 frames removed, every real item label (20-35px tall) kept.
 - **Covered game -> false death:** another app's window came on top -> PAUSED, then DEAD 3s later (the HUD-gone timer kept running while covered). Now: after focus returns the HUD must stay missing `death.confirm_s` + 1s on its own; and `is_foreground` also requires that no other window covers most of the client area (`WindowFromPoint` at 5 points, >= 3 = covered; checked live: D4 behind another window -> covered=True). Test `test_covered_window_is_not_death_after_focus_returns`. Non-game captures deleted.
 - Stuck 12 in 3.5 min: this zone is tight (narrow beige corridors between big red patches), and the false route pulled it around. Judge path planning again on the rerun.
+
+## 3q. Red item labels; stairs note (2026-10-25)
+
+- Run 2 missed a red "Amulet" label (user screenshot): `label_hsv` had no red. Added red H 0-5 / 174-180, S >= 150, V >= 170. Over 132 fire-heavy 1440p snapshots (path1 + path2): **0 extra labels** from red alone. Label size rule loosened 90px/4x -> 80px/3.5x (real "Amulet" text ~97px); still 20 labels on those frames, unchanged. Looser (55px/2.5x) added 16 junk hits (Helltide threat meter bars, "Subo" name plate, red ground cracks, floating "+Cinder") - don't go there. Test `test_red_label_is_loot_and_zone_banner_is_not`.
+- User: in run 1 the bot had trouble going up a stair/ramp. Stuck spell 111-141s was in The Spiteful Rise (cliffs, ramps): on the minimap the ramps are thin broken beige strips between big red areas, and the false route (3p) was pulling it there. No fix yet (no clear capture of the stair); run 2 had stuck 0. If it recurs: `.un.cmd -Snap stairs` + F9 while it is stuck, and note the time.
 
 ### Where it stands (end of 2026-10-24 night session)
 - Works live: town + stash (Ichorfall), Warplan teleport, route recognition + following (marowen 0.99), hunting/looting (4.5 min: 50 packs, 14 loot, stuck 1), focus pause, no-Helltide retry.
