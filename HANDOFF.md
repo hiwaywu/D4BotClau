@@ -2,7 +2,7 @@
 
 **Status:** full Helltide cycle built: town + stash → Warplan teleport → follow recorded route → farm → repeat. First full live round worked (2026-10-24 01:09). Since then, built offline (cloud session, no game): path planning around walls, idle reset, and an optional YOLO detector pipeline - none of it run live yet. Not safe to leave unattended.
 **Next session: start at section 0 below** (step 1 done on the new PC; long soak test moved to the very end by user decision).
-**Last updated:** 2026-10-24
+**Last updated:** 2026-10-25
 **Repo:** https://github.com/hiwaywu/D4BotClau (private). Push after every change; update this file in the same commit.
 **Project folder:** `C:\AI STUFF\Claude\Diablo4\d4-visual-bot` (the old copy in `OneDrive\Documents\deepseek-harness\default-workspace\d4-visual-bot` is stale)
 
@@ -61,6 +61,8 @@ Expect: same hunting as before; when a pack is behind a wall/red edge it should 
 - `logs\session.log`: the 30s `Stats` lines - `stuck=` should be as low or lower than the last runs (soak 14: 6 in 10 min).
 - `data\path1\overlay_*.jpg`: green lines on the minimap = a planned route to a pack behind a wall.
 If it walks into walls more than before: set `nav: path_planning: false` in `config.yaml` and compare, then tell Claude what you saw.
+
+**Run 1 2026-10-25 00:31 (Kareka Floodplain, new Helltide, no recorded route):** 234s, 10 packs, 33 loot clicks, stuck 12 (worse than soak 14). Path planning did run (`goal 57px (route 83px)`, `goal 144px (route 198px)`). Three bugs found and fixed (section 3p). **Redo Step 3 once** with the fixes before Step 4.
 
 ### Step 4 - Use the full cycle (as long as you like, watched)
 This is the normal way to run it. No minimum length - stop with F8 whenever.
@@ -282,6 +284,14 @@ Optional on-screen object detector, off by default (`detector:` in config.yaml).
 - **Verified here:** synthetic dataset (3 sessions, 180 frames) -> `tools/yolo_train.py` on CPU -> val mAP50 0.995 -> exported ONNX loaded by `Detector` on OpenCV 4.14 and 5.0 and onnxruntime: boxes within 1-2px of truth, also on a 2560x1440 upscale. 30 ms per frame at 320 px on this server's CPU. Tests: `tests/test_detector.py` (decode/NMS/letterbox, labels, session split, dedupe, labeller, aim).
 - **Not verified:** anything on real D4 frames; DirectML speed on the user's GPU; `setup.ps1 -Yolo` on Windows (CUDA wheel index cu128 -> cu126 -> CPU fallback).
 - **Next:** user collects 300-500 frames over 3+ sessions and labels them; first model; check a dry run's overlays before `aim: true`.
+
+## 3p. Step 3 live run on the new PC (2026-10-25 00:31, Kareka Floodplain): three fixes
+
+New Helltide, no recorded route. 234s: 10 packs, 33 loot clicks, stuck 12, demon throughout, 10.8 fps. Ended early as "DEAD" (it was not).
+- **False route match:** the global route search accepted kyovashad 0.45-0.62 and marowen 0.47 in this unrecorded zone and steered along a path that is not there. Real first fixes score 0.99. `RouteLocator.acquire_score` 0.8 for the first fix of a zone (local tracking still accepts 0.5).
+- **Zone-name banner clicked as loot** (8x): the "ELDERWOOD GROVE" / "KAREKA FLOODPLAIN" banner shown when entering a sub-zone is boxed white words on dark, always centred at y 799 (0.555 H), 19px tall. Labels there with h <= 21 within 330px of centre are dropped; all banner hits in the run's 75 frames removed, every real item label (20-35px tall) kept.
+- **Covered game -> false death:** another app's window came on top -> PAUSED, then DEAD 3s later (the HUD-gone timer kept running while covered). Now: after focus returns the HUD must stay missing `death.confirm_s` + 1s on its own; and `is_foreground` also requires that no other window covers most of the client area (`WindowFromPoint` at 5 points, >= 3 = covered; checked live: D4 behind another window -> covered=True). Test `test_covered_window_is_not_death_after_focus_returns`. Non-game captures deleted.
+- Stuck 12 in 3.5 min: this zone is tight (narrow beige corridors between big red patches), and the false route pulled it around. Judge path planning again on the rerun.
 
 ### Where it stands (end of 2026-10-24 night session)
 - Works live: town + stash (Ichorfall), Warplan teleport, route recognition + following (marowen 0.99), hunting/looting (4.5 min: 50 packs, 14 loot, stuck 1), focus pause, no-Helltide retry.
