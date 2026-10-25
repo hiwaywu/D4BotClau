@@ -1,7 +1,8 @@
 # HANDOFF — d4-visual-bot
 
-**Status:** full Helltide cycle built: town + stash → Warplan teleport → follow recorded route → farm → repeat. First full live round worked (2026-10-24 01:09). Since then, built offline (cloud session, no game): path planning around walls, idle reset, and an optional YOLO detector pipeline - none of it run live yet. Not safe to leave unattended.
-**Next session: start at section 0 below** (step 1 done on the new PC; long soak test moved to the very end by user decision).
+**Status:** full Helltide cycle works live up to the route: town + stash -> Warplan teleport -> route located (kyovashad 0.65) -> farming. 2026-10-25 session (new PC) fixed: false route matches, zone banner + NPC plates clicked as loot, covered window read as death, red item labels, "Helltide ended" firing in a town outside the Helltide. Plain farm test (Step 3) passed: stuck 0 in 3 min. Not safe to leave unattended.
+**RESUME HERE (any PC):** user decision - keep it simple: **record one long route per Helltide town** (5-6 towns): waypoint -> out into the Helltide -> a circuit that ends where the circuit began (the bot repeats the circuit, see 3s). The bot follows it, fights packs on the way, roams freely after a one-way route, and the cycle does town + stash + Warplan when the Helltide ends or every 30 min. Next action: Step 4b with the town the Warplan sends you to (re-record kyovashad as a long route), then show the user the recorded line on the mosaic (green line drawing) before running `-Cycle`. On a new PC: clone, `.\setup.cmd`, then use that clone's folder in every command (this PC: `C:\AI\Claude\D4BotClau`; Windows scaling 200% here - window-size checks must be DPI-aware).
+**Next session: start at section 0 below** (steps 1-3 done on the 2026-10-25 PC; long soak test moved to the very end by user decision).
 **Last updated:** 2026-10-25
 **Repo:** https://github.com/hiwaywu/D4BotClau (private). Push after every change; update this file in the same commit.
 **Project folder:** `C:\AI STUFF\Claude\Diablo4\d4-visual-bot` (the old copy in `OneDrive\Documents\deepseek-harness\default-workspace\d4-visual-bot` is stale)
@@ -316,7 +317,8 @@ un.cmd -Snap stairs` + F9 while it is stuck, and note the time.
 - No loot clicks until the round's first pack fight when a route is active (towns have no monsters; Kyovashad NPC name plates were clicked). Packs on the route ARE fought (user: "you will die by the time you walk there").
 - `routes.leash_px` 140 -> 0: after a one-way route the bot roams freely (user).
 - Looped routes: `find_loop_start` (computed at load, no re-record needed) - if the route ends within 40px of an earlier point (>= 50 points back), the bot loops from that point instead of walking back to the town start. kyovashad and marowen stay one-way. Tests: `test_route_fights_packs_on_the_way_but_clicks_no_labels`, `test_long_route_loops_its_circuit_not_back_to_town`.
-- How to record a long route: stand on the waypoint, `.un.cmd -Record <town>`, click into the game, walk out to the Helltide, walk the circuit you want farmed, and finish the circuit where it began (within ~40 minimap px), F8.
+- How to record a long route: stand on the waypoint, `.
+un.cmd -Record <town>`, click into the game, walk out to the Helltide, walk the circuit you want farmed, and finish the circuit where it began (within ~40 minimap px), F8.
 - Bag full: not detected; the cycle still stashes every 30 min (`--stash-every-min`).
 
 ### Where it stands (end of 2026-10-24 night session)
