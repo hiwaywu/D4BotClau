@@ -214,6 +214,10 @@ def cmd_run(
         )
     print("Emergency stop: F8\n")
 
+    # Routes lead from a waypoint town out into the Helltide, so they only
+    # matter in -Cycle; here the run starts inside the Helltide, where a
+    # recorded zone could only be a look-alike (live path1).
+    config = replace(config, routes=replace(config.routes, enabled=False))
     _farm(config, input_enabled, debug, max_seconds, snapshot_dir, snapshot_every_s)
     return 0
 

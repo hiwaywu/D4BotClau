@@ -257,7 +257,13 @@ class RouteLocator:
         self._fix = RouteFix(False)
         self._misses = 0
         self.max_misses = 200  # locate attempts (every every_n frames): ~1 min at 10 fps
-        self.acquire_score = 0.8  # first fix of a zone (tracking afterwards accepts 0.5)
+        # A zone is only searched for (globally) right after landing: the
+        # real Kyovashad fix scores 0.59 on its waypoint, while an unrecorded
+        # Helltide matched it at 0.45-0.62 mid-farm (live path1), so the score
+        # alone cannot tell them apart. Afterwards only local tracking runs.
+        self.acquire_window_s = 30.0
+        self.acquire_score = 0.5
+        self._born = time.monotonic()
 
     @property
     def active(self) -> RouteMap | None:
@@ -284,11 +290,11 @@ class RouteLocator:
                 return self._fix
             self._active, self._fix = None, RouteFix(False)
         best = RouteFix(False)
+        if time.monotonic() - self._born > self.acquire_window_s:
+            self._fix = best
+            return best
         for route in self.routes:
             fix = route.locate(gray, None)
-            # Real first fixes score 0.99; an unrecorded Helltide matched
-            # kyovashad/marowen at 0.45-0.62 (live path1) and followed a
-            # route that is not there.
             if fix.valid and fix.score >= self.acquire_score and fix.score > best.score:
                 best, self._active = fix, route
         if best.valid:

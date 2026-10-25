@@ -745,6 +745,23 @@ def test_route_recording_localizes_anywhere_on_it(tmp_path: Path) -> None:
         assert fix.valid and np.hypot(fix.x + offset[0] - p[0], fix.y + offset[1] - p[1]) < 6.0
 
 
+def test_route_is_only_searched_for_right_after_landing(tmp_path: Path, clock: Clock) -> None:
+    # Live path1: mid-farm look-alike terrain matched a recorded town (0.45-0.62),
+    # as high as the real Kyovashad landing (0.59), so only the timing separates them.
+    from d4bot.routes import RouteLocator, load_routes
+
+    walk = [(320 + i * 4.0, 300.0) for i in range(230)]
+    _record_maze_route(tmp_path / "routes", walk)
+    world, _ = _maze()
+    x, y, w, h = MINIMAP.pixels(W, H)
+    crop = _frame(world, np.array([600.0, 300.0]))[y : y + h, x : x + w]
+    late = RouteLocator(load_routes(tmp_path / "routes"), NavConfig())
+    clock.now += 31.0
+    assert not any(late.update(crop, (0.0, 0.0)).valid for _ in range(6))
+    landed = RouteLocator(load_routes(tmp_path / "routes"), NavConfig())
+    assert any(landed.update(crop, (0.0, 0.0)).valid for _ in range(6))
+
+
 def test_bot_follows_recorded_route_then_stays_on_leash(tmp_path: Path, clock: Clock) -> None:
     from d4bot.config import CombatConfig, RoutesConfig
 

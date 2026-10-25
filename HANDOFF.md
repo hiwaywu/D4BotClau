@@ -64,7 +64,9 @@ If it walks into walls more than before: set `nav: path_planning: false` in `con
 
 **Run 1 2026-10-25 00:31 (Kareka Floodplain, new Helltide, no recorded route):** 234s, 10 packs, 33 loot clicks, stuck 12 (worse than soak 14). Path planning did run (`goal 57px (route 83px)`, `goal 144px (route 198px)`). Three bugs found and fixed (section 3p). **Redo Step 3 once** with the fixes before Step 4.
 
-**Run 2 2026-10-25 00:45 (Path of Desperation, with the 3p fixes):** 179s until F8: **stuck 0**, ~22 packs, 7 loot clicks, demon throughout, no false route, no banner clicks. Missed a red "Amulet" label (fixed, 3q). Near the end the game window changed to 1280x720 (capture 2560x954 -> HUD read as missing twice). **Step 3 passed.** Restore 2560x1440 windowed before Step 4.
+**Run 2 2026-10-25 00:45 (Path of Desperation, with the 3p fixes):** 179s until F8: **stuck 0**, ~22 packs, 7 loot clicks, demon throughout, no false route, no banner clicks. Missed a red "Amulet" label (fixed, 3q). Near the end one capture came back 2560x954 (window probably dragged partly off screen for a moment) -> HUD read as missing twice. **Step 3 passed.** (A quick window-size check printed 1280x720: that was the check itself not being DPI-aware - Windows scaling is 200% here. Always call `enable_dpi_awareness()` first; the bot does. The game was 2560x1440 all along.)
+
+**Step 4 cycle 1, 2026-10-25 01:04:** stash OK (1 item, 20s) -> Warplan teleport OK (11s) -> landed in **Kyovashad** -> route NOT located -> roamed west, user F8 after 9s. Cause: the 0.8 acquire threshold from 3p; the real Kyovashad waypoint match scores only 0.59. Fixed differently (3r). Next: rerun Step 4.
 
 ### Step 4 - Use the full cycle (as long as you like, watched)
 This is the normal way to run it. No minimum length - stop with F8 whenever.
@@ -298,7 +300,13 @@ New Helltide, no recorded route. 234s: 10 packs, 33 loot clicks, stuck 12, demon
 ## 3q. Red item labels; stairs note (2026-10-25)
 
 - Run 2 missed a red "Amulet" label (user screenshot): `label_hsv` had no red. Added red H 0-5 / 174-180, S >= 150, V >= 170. Over 132 fire-heavy 1440p snapshots (path1 + path2): **0 extra labels** from red alone. Label size rule loosened 90px/4x -> 80px/3.5x (real "Amulet" text ~97px); still 20 labels on those frames, unchanged. Looser (55px/2.5x) added 16 junk hits (Helltide threat meter bars, "Subo" name plate, red ground cracks, floating "+Cinder") - don't go there. Test `test_red_label_is_loot_and_zone_banner_is_not`.
-- User: in run 1 the bot had trouble going up a stair/ramp. Stuck spell 111-141s was in The Spiteful Rise (cliffs, ramps): on the minimap the ramps are thin broken beige strips between big red areas, and the false route (3p) was pulling it there. No fix yet (no clear capture of the stair); run 2 had stuck 0. If it recurs: `.un.cmd -Snap stairs` + F9 while it is stuck, and note the time.
+- User: in run 1 the bot had trouble going up a stair/ramp. Stuck spell 111-141s was in The Spiteful Rise (cliffs, ramps): on the minimap the ramps are thin broken beige strips between big red areas, and the false route (3p) was pulling it there. No fix yet (no clear capture of the stair); run 2 had stuck 0. If it recurs: `.
+un.cmd -Snap stairs` + F9 while it is stuck, and note the time.
+
+## 3r. Route search only right after landing (2026-10-25)
+
+- Real Kyovashad waypoint fix 0.59 vs false mid-Helltide matches 0.45-0.62: score cannot separate them. Now `RouteLocator` searches globally only in the first `acquire_window_s` 30s after it is created (each farm round creates a new Vision = right after the teleport); after that only local tracking of an already found route. `acquire_score` back to 0.5. Plain farm (`cmd_run`, no -Cycle) runs with routes disabled: it starts inside the Helltide, where a recorded zone can only be a look-alike. Checked: the cycle-1 landing frame locates kyovashad (0.59) at the right spot (between the letter/heart icons and the stash on the mosaic). Test `test_route_is_only_searched_for_right_after_landing`.
+- Note: the kyovashad recording does not start on the waypoint (path[0] is 183px SE of it; the waypoint is near path index 17). The follower picks the nearest path point, so it still works.
 
 ### Where it stands (end of 2026-10-24 night session)
 - Works live: town + stash (Ichorfall), Warplan teleport, route recognition + following (marowen 0.99), hunting/looting (4.5 min: 50 packs, 14 loot, stuck 1), focus pause, no-Helltide retry.
