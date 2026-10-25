@@ -145,14 +145,15 @@ detector:
 # Recorded routes. Record one per Helltide zone (no input is sent):
 #   .\run.cmd -Record kehjistan_1     (stand on the waypoint, walk, F8 to save)
 # The bot locates itself on the stitched minimap, follows the path to its end
-# (lead it to a big open area), then hunts freely within leash_px of the end.
+# (lead it to a big open area), fighting packs on the way (no loot clicks
+# until the route is done: it starts in town), then hunts and roams freely.
 # A route that ends where it started is looped instead.
 routes:
   enabled: true
   folder: routes
   weight: 2.0
   lookahead: 5
-  leash_px: 140
+  leash_px: 0              # 0 = after the route, roam freely (user: keep it simple)
 
 # Death / loading detection. The real D4 death screen ("YOU HAVE DIED",
 # "Revive at Checkpoint") is darkened but coloured, and the whole HUD is gone.

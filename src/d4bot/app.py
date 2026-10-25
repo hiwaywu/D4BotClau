@@ -676,6 +676,7 @@ def cmd_cycle(
                 waited += 60.0
 
             gone_since: list[float | None] = [None]
+            timer_seen = [False]
             farm_start = time.monotonic()
             route_seen = [False]
             last_busy = [farm_start]
@@ -694,6 +695,13 @@ def cmd_cycle(
                     return "no recorded route for this town (record one with -Record <town>)"
                 if helltide.seen(frame, "helltide_label"):
                     gone_since[0] = None
+                    timer_seen[0] = True
+                elif not timer_seen[0]:
+                    # The waypoint town can lie outside the Helltide (live:
+                    # Kyovashad) and shows no timer while the route walks out;
+                    # "ended" only counts once the timer was seen this round.
+                    if now - farm_start >= 240.0:
+                        return "Helltide ended (timer never seen in 4 min)"
                 elif gone_since[0] is None:
                     gone_since[0] = now
                 elif now - gone_since[0] >= 20.0:

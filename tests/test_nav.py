@@ -762,6 +762,35 @@ def test_route_is_only_searched_for_right_after_landing(tmp_path: Path, clock: C
     assert any(landed.update(crop, (0.0, 0.0)).valid for _ in range(6))
 
 
+def test_route_fights_packs_on_the_way_but_clicks_no_labels(tmp_path: Path, clock: Clock) -> None:
+    # User: fight on the way (or die walking). Live cycle 2: walking out of
+    # Kyovashad it clicked NPC name plates as loot.
+    from d4bot.config import CombatConfig, RoutesConfig
+
+    walk = [(320 + i * 4.0, 300.0) for i in range(230)]
+    _record_maze_route(tmp_path / "routes", walk)
+    config = _config(
+        tmp_path,
+        combat=CombatConfig(mode="hunt"),
+        routes=RoutesConfig(enabled=True, folder="routes"),
+    )
+    world, _ = _maze()
+    vision = Vision(config)
+    brain = CombatBrain(config, rng=random.Random(3))
+    states = []
+    for _ in range(6):
+        clock.now += 0.05
+        frame = _frame(world, np.array([600.0, 300.0]))
+        _label(frame, 760, 1035)                             # a name plate near the player
+        states.append(brain.decide(vision.observe(frame), True).state)
+    assert brain.route_mode == "route" and "LOOT" not in states
+
+    clock.now += 0.05
+    frame = _frame(world, np.array([600.0, 300.0]))
+    _dot(frame, 13, 0)                                       # a pack right next to the route
+    assert brain.decide(vision.observe(frame), True).state == "FIGHT"
+
+
 def test_bot_follows_recorded_route_then_stays_on_leash(tmp_path: Path, clock: Clock) -> None:
     from d4bot.config import CombatConfig, RoutesConfig
 
@@ -883,3 +912,17 @@ def test_hunt_walks_around_a_wall_to_reach_a_pack(tmp_path: Path, clock: Clock) 
     states, stuck = _hunt_behind_wall(tmp_path, clock, planning=True)
     assert states[-1] == "FIGHT", (len(states), stuck)
     assert len(states) * 0.05 < 10.0                      # without planning: ~18s and a stuck event
+
+
+def test_long_route_loops_its_circuit_not_back_to_town() -> None:
+    # User: one long route - waypoint, out into the Helltide, then a circuit.
+    from d4bot.routes import find_loop_start
+
+    lead = [(i * 6.0, 0.0) for i in range(30)]                        # town -> open area
+    circuit = [(180 + 100 * math.sin(t / 80 * 2 * math.pi), 100 - 100 * math.cos(t / 80 * 2 * math.pi))
+               for t in range(81)]                                    # one lap, back to (180, 0)
+    start = find_loop_start(np.array(lead + circuit))
+    assert start is not None and 22 <= start <= 31                  # where the circuit begins
+    assert find_loop_start(np.array(lead)) is None                    # one-way route
+    there_and_back = lead + lead[::-1]                                # ends at the town start
+    assert find_loop_start(np.array(there_and_back)) == 0

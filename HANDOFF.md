@@ -68,6 +68,8 @@ If it walks into walls more than before: set `nav: path_planning: false` in `con
 
 **Step 4 cycle 1, 2026-10-25 01:04:** stash OK (1 item, 20s) -> Warplan teleport OK (11s) -> landed in **Kyovashad** -> route NOT located -> roamed west, user F8 after 9s. Cause: the 0.8 acquire threshold from 3p; the real Kyovashad waypoint match scores only 0.59. Fixed differently (3r). Next: rerun Step 4.
 
+**Step 4 cycle 2, 2026-10-25 01:17:** kyovashad located (0.65) and followed (#17 -> #35), but each round ended after 21s with "Helltide ended (timer gone 20s)" - the Helltide timer is not shown in Kyovashad town (outside the Helltide; marowen's waypoint is inside it, so this never showed before). It also clicked NPC name plates in town as loot. Both fixed (3s). **User decision:** keep it simple - record **one long route per Helltide town** (waypoint -> open area -> a circuit back to where the circuit began; 5-6 towns), the bot follows it and fights on the way until the Helltide ends, then town + stash + Warplan again. Next: record those routes (Step 4b), starting with the town the Warplan sends you to now.
+
 ### Step 4 - Use the full cycle (as long as you like, watched)
 This is the normal way to run it. No minimum length - stop with F8 whenever.
 ```powershell
@@ -307,6 +309,15 @@ un.cmd -Snap stairs` + F9 while it is stuck, and note the time.
 
 - Real Kyovashad waypoint fix 0.59 vs false mid-Helltide matches 0.45-0.62: score cannot separate them. Now `RouteLocator` searches globally only in the first `acquire_window_s` 30s after it is created (each farm round creates a new Vision = right after the teleport); after that only local tracking of an already found route. `acquire_score` back to 0.5. Plain farm (`cmd_run`, no -Cycle) runs with routes disabled: it starts inside the Helltide, where a recorded zone can only be a look-alike. Checked: the cycle-1 landing frame locates kyovashad (0.59) at the right spot (between the letter/heart icons and the stash on the mosaic). Test `test_route_is_only_searched_for_right_after_landing`.
 - Note: the kyovashad recording does not start on the waypoint (path[0] is 183px SE of it; the waypoint is near path index 17). The follower picks the nearest path point, so it still works.
+
+## 3s. Simple route play: fight on the way, loop the circuit (2026-10-25)
+
+- Cycle "Helltide ended" only counts once the Helltide timer was seen this round; never seen in 4 min -> "Helltide ended (timer never seen in 4 min)" (new round).
+- No loot clicks until the round's first pack fight when a route is active (towns have no monsters; Kyovashad NPC name plates were clicked). Packs on the route ARE fought (user: "you will die by the time you walk there").
+- `routes.leash_px` 140 -> 0: after a one-way route the bot roams freely (user).
+- Looped routes: `find_loop_start` (computed at load, no re-record needed) - if the route ends within 40px of an earlier point (>= 50 points back), the bot loops from that point instead of walking back to the town start. kyovashad and marowen stay one-way. Tests: `test_route_fights_packs_on_the_way_but_clicks_no_labels`, `test_long_route_loops_its_circuit_not_back_to_town`.
+- How to record a long route: stand on the waypoint, `.un.cmd -Record <town>`, click into the game, walk out to the Helltide, walk the circuit you want farmed, and finish the circuit where it began (within ~40 minimap px), F8.
+- Bag full: not detected; the cycle still stashes every 30 min (`--stash-every-min`).
 
 ### Where it stands (end of 2026-10-24 night session)
 - Works live: town + stash (Ichorfall), Warplan teleport, route recognition + following (marowen 0.99), hunting/looting (4.5 min: 50 packs, 14 loot, stuck 1), focus pause, no-Helltide retry.

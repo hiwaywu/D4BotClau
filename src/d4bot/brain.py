@@ -486,7 +486,12 @@ class CombatBrain:
             packs = [p for p in packs if p is not target]
 
         self._loot_goal = False
-        if self._hunt_target is None and combat.loot_enabled:
+        # A recorded route starts in the waypoint town, where the "labels" are
+        # NPC name plates (live cycle 2, Kyovashad): no loot clicks until the
+        # first pack is fought (towns have no monsters). Also works for a
+        # looped route, which is never "done".
+        in_town = obs.route_map is not None and self.packs_engaged == 0
+        if self._hunt_target is None and combat.loot_enabled and not in_town:
             loot = self._loot(obs, now, actions, notes)
             if loot is not None:
                 return loot

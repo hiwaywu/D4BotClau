@@ -277,7 +277,7 @@ class RoutesConfig:
     folder: str = "routes"
     weight: float = 2.0               # steering pull toward the route (packs use hunt_weight)
     lookahead: int = 5                # path points ahead (~6 minimap px each)
-    leash_px: float = 140.0           # at the route's end, roam within this of the end point
+    leash_px: float = 0.0             # > 0: at the route's end, roam within this of the end point; 0 = roam freely
 
 
 @dataclass(frozen=True)
@@ -650,7 +650,7 @@ def load_config(config_path: str | Path) -> BotConfig:
         folder=str(routes_raw.get("folder", "routes")),
         weight=float(routes_raw.get("weight", 2.0)),
         lookahead=int(routes_raw.get("lookahead", 5)),
-        leash_px=float(routes_raw.get("leash_px", 140.0)),
+        leash_px=float(routes_raw.get("leash_px", 0.0)),
     )
 
     death_raw = _section(raw, "death")

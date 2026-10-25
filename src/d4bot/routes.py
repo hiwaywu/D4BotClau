@@ -149,6 +149,20 @@ class RouteRecorder:
         return out
 
 
+def find_loop_start(path: np.ndarray, radius: float = 40.0, min_points: int = 50) -> int | None:
+    """Index where a looped route starts its loop, or None for a one-way route.
+
+    User: record one long route - waypoint -> out into the Helltide -> a big
+    circuit that ends where the circuit began. The bot then repeats the circuit
+    (from the first point near the end) instead of walking back into town.
+    """
+    if len(path) < min_points + 1:
+        return None
+    end = path[-1]
+    near = np.flatnonzero(np.linalg.norm(path[: len(path) - min_points] - end, axis=1) <= radius)
+    return int(near[0]) if near.size else None
+
+
 @dataclass
 class RouteFix:
     valid: bool
@@ -165,6 +179,7 @@ class RouteMap:
     covered: np.ndarray
     path: np.ndarray            # (N, 2) mosaic coords
     loop: bool
+    loop_from: int = 0          # a looped route goes back to this path index, not to the town start
     _small: np.ndarray | None = field(default=None, repr=False)
     max_correction_px: float = 25.0  # dead reckoning is better than this over a few frames
 
@@ -175,12 +190,15 @@ class RouteMap:
         covered = cv2.imread(str(folder / "covered.png"), cv2.IMREAD_GRAYSCALE)
         if mosaic is None or covered is None:
             raise ValueError(f"route {folder} is missing mosaic.png/covered.png")
+        path = np.array(meta["path"], dtype=np.float64)
+        loop_from = find_loop_start(path)
         return cls(
             name=str(meta.get("name", folder.name)),
             mosaic=mosaic,
             covered=covered,
-            path=np.array(meta["path"], dtype=np.float64),
-            loop=bool(meta.get("loop", False)),
+            path=path,
+            loop=loop_from is not None,
+            loop_from=loop_from or 0,
         )
 
     def _inside(self, cx: float, cy: float, w: int, h: int, minimum: float = 0.85) -> bool:
@@ -328,12 +346,12 @@ class RouteFollower:
         last = len(path) - 1
         if not self.done and self.index >= last - 1:
             if route.loop:
-                self.index = 0
+                self.index = route.loop_from
             else:
                 self.done = True
         if self.done:
             end = path[-1]
-            if np.linalg.norm(end - here) > self.leash_px:
+            if self.leash_px > 0 and np.linalg.norm(end - here) > self.leash_px:
                 return float(end[0] - fix.x), float(end[1] - fix.y), "leash"
             return None
         target = path[min(self.index + self.lookahead, last)]
