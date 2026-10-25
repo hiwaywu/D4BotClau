@@ -318,6 +318,24 @@ def test_grey_screen_is_death_after_confirm(tmp_path: Path, clock: Clock) -> Non
     assert not vision.observe(colour).dead        # colour back = alive again
 
 
+def test_covered_window_is_not_death_after_focus_returns(tmp_path: Path, clock: Clock) -> None:
+    # Live path1: another app covered the game -> PAUSED, then DEAD 3s later.
+    config = _config(tmp_path, mode="assist", death=DeathConfig(enabled=True, confirm_s=1.0))
+    vision = Vision(config)
+    brain = CombatBrain(config)
+    grey = np.full((H, W, 3), 128, dtype=np.uint8)
+
+    vision.observe(grey)
+    clock.now += 1.5
+    obs = vision.observe(grey)
+    assert obs.dead
+    assert brain.decide(obs, False).state == "PAUSED"
+    clock.now += 0.1
+    assert brain.decide(vision.observe(grey), True).state == "PAUSED"   # focus back: settle first
+    clock.now += 2.1
+    assert brain.decide(vision.observe(grey), True).state == "DEAD"     # still gone on its own
+
+
 def test_black_screen_pauses_input(tmp_path: Path, clock: Clock) -> None:
     config = _config(tmp_path, death=DeathConfig(enabled=True))
     obs = Vision(config).observe(np.zeros((H, W, 3), dtype=np.uint8))

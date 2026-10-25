@@ -257,6 +257,7 @@ class RouteLocator:
         self._fix = RouteFix(False)
         self._misses = 0
         self.max_misses = 200  # locate attempts (every every_n frames): ~1 min at 10 fps
+        self.acquire_score = 0.8  # first fix of a zone (tracking afterwards accepts 0.5)
 
     @property
     def active(self) -> RouteMap | None:
@@ -285,7 +286,10 @@ class RouteLocator:
         best = RouteFix(False)
         for route in self.routes:
             fix = route.locate(gray, None)
-            if fix.valid and fix.score > best.score:
+            # Real first fixes score 0.99; an unrecorded Helltide matched
+            # kyovashad/marowen at 0.45-0.62 (live path1) and followed a
+            # route that is not there.
+            if fix.valid and fix.score >= self.acquire_score and fix.score > best.score:
                 best, self._active = fix, route
         if best.valid:
             log.info("Route: located in %r (score %.2f)", best.name, best.score)

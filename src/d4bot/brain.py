@@ -141,13 +141,19 @@ class CombatBrain:
             # of it (live run 6 read a white app window as a death screen).
             self._lost_focus = True
             return Decision(state="PAUSED", note="game window is not foreground")
-        if obs.dead:
-            return Decision(state="DEAD", note="HUD gone (death screen, disconnect or menu); input stopped")
         if self._lost_focus:
             # Keys sent the instant focus returns can be dropped (live run 4).
             self._lost_focus = False
             self._focus_back_at = now
-        if self._focus_back_at is not None and now - self._focus_back_at < 1.0:
+        since_focus = None if self._focus_back_at is None else now - self._focus_back_at
+        if obs.dead:
+            # The HUD-gone timer also ran while another window covered the
+            # game (live path1: PAUSED -> DEAD 3s later); after focus returns
+            # the HUD must stay missing a full confirm period on its own.
+            if since_focus is not None and since_focus < self.config.death.confirm_s + 1.0:
+                return Decision(state="PAUSED", note="focus regained; settling")
+            return Decision(state="DEAD", note="HUD gone (death screen, disconnect or menu); input stopped")
+        if since_focus is not None and since_focus < 1.0:
             return Decision(state="PAUSED", note="focus regained; settling")
         if obs.black:
             self._moving_since = None

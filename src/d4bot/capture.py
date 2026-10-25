@@ -21,6 +21,10 @@ IS_WINDOWS = sys.platform == "win32"
 if IS_WINDOWS:
     _user32 = ctypes.WinDLL("user32", use_last_error=True)
     _EnumWindowsProc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    _user32.WindowFromPoint.argtypes = [wintypes.POINT]
+    _user32.WindowFromPoint.restype = wintypes.HWND
+    _user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
+    _user32.GetAncestor.restype = wintypes.HWND
 else:  # pragma: no cover - this project targets Windows
     _user32 = None
     _EnumWindowsProc = None
@@ -108,10 +112,32 @@ def find_game_window(title_contains: str) -> GameWindow | None:
 
 
 def is_foreground(hwnd: int | None) -> bool:
+    """The game has focus AND no other window sits on top of its client area."""
     if not IS_WINDOWS or not hwnd:
         return False
     assert _user32 is not None
-    return int(_user32.GetForegroundWindow()) == int(hwnd)
+    if int(_user32.GetForegroundWindow()) != int(hwnd):
+        return False
+    return not _is_covered(int(hwnd))
+
+
+def _is_covered(hwnd: int) -> bool:
+    """An always-on-top window over the game: capture would see that window.
+
+    Samples 5 points; covered only if most of them belong to another window,
+    so a small overlay in a corner does not pause the bot.
+    """
+    assert _user32 is not None
+    x, y, w, h = _client_screen_rect(hwnd)
+    if w <= 0 or h <= 0:
+        return False
+    other = 0
+    for fx, fy in ((0.5, 0.5), (0.25, 0.25), (0.75, 0.25), (0.25, 0.75), (0.75, 0.75)):
+        point = wintypes.POINT(int(x + w * fx), int(y + h * fy))
+        hit = _user32.WindowFromPoint(point)
+        if hit and int(_user32.GetAncestor(hit, 2) or 0) != hwnd:  # 2 = GA_ROOT
+            other += 1
+    return other >= 3
 
 
 def foreground_title() -> str:

@@ -312,6 +312,12 @@ class Vision:
             background = hsv[y : y + h, x : x + w, 2][~box_text]
             if background.size == 0 or float(np.median(background)) > 120:
                 continue  # bright surroundings: fire, not a label
+            cx, cy = x0 + x + w / 2.0, y0 + y + h / 2.0
+            if abs(cy - 0.555 * fh) <= 8 * scale and h <= 21 * scale and abs(cx - fw / 2.0) <= 330 * scale:
+                # Zone-name banner ("ELDERWOOD GROVE") shown when entering a
+                # sub-zone: boxed white words, centred at y 799, 19px tall
+                # (live path1: clicked as loot 8x). Item labels were 20-35px.
+                continue
             labels.append((x0 + int(x), y0 + int(y), int(w), int(h)))
         return labels
 
