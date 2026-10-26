@@ -734,7 +734,11 @@ class Vision:
 
     def _update_death(self, health: GlobeReading, screen: ScreenReading, now: float) -> bool:
         screen_dead = False
-        if screen.grey or screen.no_hud:
+        # A grey screen alone is not death when the HUD is plainly there:
+        # live 2026-10-26 the pale "Cankering Center" (saturation 13.2 < 14)
+        # was read as death while riding with the HUD at 1.00.
+        hud_seen = screen.hud_score is not None and screen.hud_score >= self.config.death.hud_threshold
+        if (screen.grey and not hud_seen) or screen.no_hud:
             if self._grey_since is None:
                 self._grey_since = now
             screen_dead = now - self._grey_since >= self.config.death.confirm_s

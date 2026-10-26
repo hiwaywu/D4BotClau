@@ -130,7 +130,7 @@ class InputConfig:
     potion_enabled: bool = True
     potion_mode: str = "health"
     potion_key: str = "q"
-    mount_key: str = "z"            # pressed once on landing in a waypoint town ("" = never)
+    mount_key: str = ""             # e.g. "z": pressed once on landing in a waypoint town; off (user: stay on foot)
     potion_threshold: float = 0.55
     potion_interval_s: float = 1.2
     potion_timer_s: float = 8.0
@@ -478,7 +478,7 @@ def load_config(config_path: str | Path) -> BotConfig:
         potion_enabled=bool(inp_raw.get("potion_enabled", True)),
         potion_mode=str(inp_raw.get("potion_mode", "health")).lower(),
         potion_key=str(inp_raw.get("potion_key", "q")),
-        mount_key=str(inp_raw.get("mount_key", "z")).lower(),
+        mount_key=str(inp_raw.get("mount_key", "")).lower(),
         potion_threshold=float(inp_raw.get("potion_threshold", 0.55)),
         potion_interval_s=float(inp_raw.get("potion_interval_s", 1.2)),
         potion_timer_s=float(inp_raw.get("potion_timer_s", 8.0)),

@@ -748,7 +748,10 @@ def test_greyed_skill_icons_mean_town_and_no_toggle_presses(tmp_path: Path, cloc
 def test_mounts_once_in_the_waypoint_town_and_stands_still_meanwhile(tmp_path: Path, clock: Clock) -> None:
     import dataclasses
 
-    config = _config(tmp_path, form=FormConfig(enabled=True, mode="glow", glow_slots=(Region(0.4031, 0.9063, 0.0297, 0.0521),)))
+    config = _config(
+        tmp_path, input=InputConfig(potion_enabled=False, mount_key="z"),
+        form=FormConfig(enabled=True, mode="glow", glow_slots=(Region(0.4031, 0.9063, 0.0297, 0.0521),)),
+    )
     world, _ = _maze()
     vision = Vision(config)
     brain = CombatBrain(config, rng=random.Random(8))
