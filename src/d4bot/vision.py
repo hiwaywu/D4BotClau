@@ -90,6 +90,7 @@ class Observation:
     route_map: RouteMap | None = None
     detections: list[Detection] = field(default_factory=list)  # YOLO (detector.enabled), else empty
     in_town: bool = False      # skill icons greyed out: skills are disabled in towns
+    mounted: bool = False      # the mount's skill bar is shown
 
     @property
     def black(self) -> bool:
@@ -183,6 +184,11 @@ class Vision:
         self._death_template = self._load_template(config.death.template) if config.death.enabled else None
         self._hud_template = self._load_template(config.death.hud_template) if config.death.enabled else None
         self._hud_scaled: tuple[int, np.ndarray] | None = None
+        # Mounted, the skill bar is replaced by the mount's (no "1" key label
+        # where hud_key1 expects it); its horse ornament is HUD art too
+        # (live 2026-10-26: 1.00 mounted, <= 0.53 on 566 other captures).
+        mounted = self.config.project_root / "templates" / "hud_mounted.png"
+        self._mounted_template = cv2.imread(str(mounted)) if config.death.enabled and mounted.is_file() else None
         self._kill_prev: np.ndarray | None = None
         self._grey_since: float | None = None
         self._minimap = (
@@ -278,6 +284,7 @@ class Vision:
             route_map=self._routes.active if self._routes is not None else None,
             detections=detections,
             in_town=not screen.black and not screen.no_hud and self.skills_greyed(frame),
+            mounted=not screen.black and self.mounted_score(frame) >= 0.8,
         )
 
     def skills_greyed(self, frame: np.ndarray) -> bool:
@@ -699,7 +706,13 @@ class Vision:
         if roi.shape[0] < th or roi.shape[1] < tw:
             return None
         result = cv2.matchTemplate(roi, template, cv2.TM_CCOEFF_NORMED)
-        return float(np.nan_to_num(result.max()))
+        return max(float(np.nan_to_num(result.max())), self.mounted_score(frame))
+
+    def mounted_score(self, frame: np.ndarray) -> float:
+        if self._mounted_template is None or frame.shape[:2] != (1440, 2560):
+            return 0.0
+        roi = frame[1150:1440, 700:1900]
+        return float(np.nan_to_num(cv2.matchTemplate(roi, self._mounted_template, cv2.TM_CCOEFF_NORMED).max()))
 
     def _update_death(self, health: GlobeReading, screen: ScreenReading, now: float) -> bool:
         screen_dead = False

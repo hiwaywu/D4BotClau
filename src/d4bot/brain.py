@@ -176,7 +176,7 @@ class CombatBrain:
         if obs.in_town and obs.route_map is not None and self.config.input.mount_key:
             if self._town_since is None:
                 self._town_since = now
-            elif not self._mounted_in_town and now - self._town_since >= 1.0:
+            elif not self._mounted_in_town and not obs.mounted and now - self._town_since >= 1.0:
                 # A move click during the summon would cancel it: stand still 1.5s.
                 self._mounted_in_town = True
                 self._mount_until = now + 1.5
@@ -184,8 +184,9 @@ class CombatBrain:
             if now < self._mount_until:
                 return Decision(state="MOUNT", note="mounting")
         elif not obs.in_town:
+            # _mounted_in_town is not reset: mounted, the town check can flicker,
+            # and a second press of the toggle would dismount. Once per round.
             self._town_since = None
-            self._mounted_in_town = False
 
         if self.config.input.potion_enabled:
             if self.config.input.potion_mode == "timer":
@@ -369,8 +370,8 @@ class CombatBrain:
         self._toggle_state = "human"
 
         if form.act_while_human:
-            if obs.in_town:
-                return None  # skills are disabled in towns; 2 would do nothing
+            if obs.in_town or obs.mounted:
+                return None  # skills are disabled in towns; mounted, 2 is not demon form
             # Soak run 10: demon drops on its own in quiet areas and slot 2
             # comes back well before 11s. Pressing 2 on cooldown does nothing,
             # and the glow check (any burning frame = demon) has been right on
