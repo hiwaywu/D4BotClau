@@ -50,6 +50,7 @@ if ($Cycle) {
     $CArgs = @("-m", "d4bot", "cycle", "--config", $Config, "--max-hours", "$MaxHours", "--idle-reset-min", "$IdleResetMin")
     if ($EnableInput) { $CArgs += "--enable-input" }
     if ($IAcceptBanRisk) { $CArgs += "--i-understand-ban-risk" }
+    if ($Snapshots) { $CArgs += @("--snapshots", $Snapshots) }
     & $Python @CArgs
     exit $LASTEXITCODE
 }

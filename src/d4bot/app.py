@@ -337,7 +337,8 @@ def _farm(
                     break
             if now - last_stats >= 30.0:
                 log.info(
-                    "Stats %.0fs: fight=%d actions=%d moves=%d potions=%d stuck=%d packs=%d loot_clicks=%d rot=%+.0fdeg",
+                    "Stats %.0fs: fight=%d actions=%d moves=%d potions=%d stuck=%d packs=%d loot_clicks=%d rot=%+.0fdeg"
+                    "  [%s: %s]",
                     now - started,
                     fight_frames,
                     actions_sent,
@@ -347,6 +348,8 @@ def _farm(
                     brain.packs_engaged,
                     brain.loot_clicks,
                     brain.rotation * 57.2958,
+                    decision.state,
+                    decision.note,  # e.g. "route kyovashad #120/586": where a stuck run was
                 )
                 last_stats = now
 
@@ -585,6 +588,7 @@ def cmd_cycle(
     max_hours: float,
     stash_every_min: float,
     idle_reset_min: float = 4.0,
+    snapshot_dir: str | None = None,
 ) -> int:
     """Town + stash -> Warplan teleport -> farm until the Helltide ends -> repeat."""
     from .warplan import WarplanConfig, WarplanVision
@@ -719,7 +723,8 @@ def cmd_cycle(
                 return None
 
             log.info("Cycle %d: farming", cycles)
-            reason = _farm(config, input_enabled=True, end_check=end_check, loot_hold_s=8.0)
+            shots = Path(snapshot_dir) / f"cycle{cycles}" if snapshot_dir else None
+            reason = _farm(config, input_enabled=True, snapshot_dir=shots, end_check=end_check, loot_hold_s=8.0)
             log.info("Cycle %d: farm ended: %s", cycles, reason)
             for _ in range(3):
                 if not reason.startswith("HUD gone"):
@@ -732,7 +737,7 @@ def cmd_cycle(
                 io.send([__import__("d4bot.brain", fromlist=["Action"]).Action(kind="press", key="esc")])
                 if not wait(1.5):
                     return 1
-                reason = _farm(config, input_enabled=True, end_check=end_check, loot_hold_s=8.0)
+                reason = _farm(config, input_enabled=True, snapshot_dir=shots, end_check=end_check, loot_hold_s=8.0)
                 log.info("Cycle %d: farm ended: %s", cycles, reason)
             if not (reason.startswith("Helltide ended") or reason.startswith("stash trip") or reason.startswith("idle reset")):
                 print(f"Cycle stopped: {reason}")
@@ -941,6 +946,7 @@ def build_parser() -> argparse.ArgumentParser:
     cycle.add_argument("--i-understand-ban-risk", action="store_true")
     cycle.add_argument("--max-hours", type=float, default=2.0)
     cycle.add_argument("--stash-every-min", type=float, default=30.0, help="town trip during a long Helltide (0 = never)")
+    cycle.add_argument("--snapshots", default=None, help="save overlay + raw frames per farm round under this folder")
     cycle.add_argument(
         "--idle-reset-min", type=float, default=4.0,
         help="restart the round (town -> teleport -> route) after this long with no fights or loot (0 = never)",
@@ -1014,7 +1020,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "cycle":
             return cmd_cycle(
                 args.config, args.enable_input, args.i_understand_ban_risk,
-                args.max_hours, args.stash_every_min, args.idle_reset_min,
+                args.max_hours, args.stash_every_min, args.idle_reset_min, args.snapshots,
             )
         if args.command == "helltide":
             return cmd_helltide(args.config, args.enable_input, args.i_understand_ban_risk, args.with_town)
