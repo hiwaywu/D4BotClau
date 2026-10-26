@@ -187,6 +187,8 @@ class Vision:
         # Mounted, the skill bar is replaced by the mount's (no "1" key label
         # where hud_key1 expects it); its horse ornament is HUD art too
         # (live 2026-10-26: 1.00 mounted, <= 0.53 on 566 other captures).
+        interact = self.config.project_root / "templates" / "interact_prompt.png"
+        self._interact_template = cv2.imread(str(interact), cv2.IMREAD_GRAYSCALE) if interact.is_file() else None
         mounted = self.config.project_root / "templates" / "hud_mounted.png"
         self._mounted_template = cv2.imread(str(mounted)) if config.death.enabled and mounted.is_file() else None
         self._kill_prev: np.ndarray | None = None
@@ -380,6 +382,22 @@ class Vision:
                 box = (x0 + int(x), y0 + int(y), int(w), int(h))
                 if not any(abs(box[0] - o[0]) < 20 * scale and abs(box[1] - o[1]) < 15 * scale for o in labels):
                     labels.append(box)
+        if labels and self._interact_template is not None and fh == 1440:
+            # Portals, waypoints, NPCs and chests show their name (white on a
+            # dark box, like loot) above an "Interact" prompt; items never do.
+            # Live 2026-10-26: a click on the "Diablo Hellfire - Tristram
+            # Outskirts" portal name took the bot out of the Helltide.
+            gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+            result = cv2.matchTemplate(gray, self._interact_template, cv2.TM_CCOEFF_NORMED)
+            th, tw = self._interact_template.shape
+            prompts = [(x0 + int(px) + tw // 2, y0 + int(py)) for py, px in zip(*np.where(result >= 0.75))]
+            labels = [
+                box for box in labels
+                if not any(
+                    abs(box[0] + box[2] / 2 - px) < 260 and py - 130 <= box[1] + box[3] / 2 <= py + th + 5
+                    for px, py in prompts
+                )
+            ]
         return labels
 
     def _kill_signal(self, frame: np.ndarray) -> bool:
