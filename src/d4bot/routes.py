@@ -178,12 +178,13 @@ def same_zone_as(
     return best
 
 
-def find_loop_start(path: np.ndarray, radius: float = 40.0, min_points: int = 50) -> int | None:
+def find_loop_start(path: np.ndarray, radius: float = 55.0, min_points: int = 50) -> int | None:
     """Index where a looped route starts its loop, or None for a one-way route.
 
     User: record one long route - waypoint -> out into the Helltide -> a big
     circuit that ends where the circuit began. The bot then repeats the circuit
     (from the first point near the end) instead of walking back into town.
+    radius 40 -> 55: the marowen re-record ended 49px from its circuit start.
     """
     if len(path) < min_points + 1:
         return None

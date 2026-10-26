@@ -964,7 +964,7 @@ def test_long_route_loops_its_circuit_not_back_to_town() -> None:
     circuit = [(180 + 100 * math.sin(t / 80 * 2 * math.pi), 100 - 100 * math.cos(t / 80 * 2 * math.pi))
                for t in range(81)]                                    # one lap, back to (180, 0)
     start = find_loop_start(np.array(lead + circuit))
-    assert start is not None and 22 <= start <= 31                  # where the circuit begins
+    assert start is not None and 20 <= start <= 31                  # where the circuit begins
     assert find_loop_start(np.array(lead)) is None                    # one-way route
     there_and_back = lead + lead[::-1]                                # ends at the town start
     assert find_loop_start(np.array(there_and_back)) == 0
