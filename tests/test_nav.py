@@ -745,6 +745,27 @@ def test_greyed_skill_icons_mean_town_and_no_toggle_presses(tmp_path: Path, cloc
     assert presses == 0
 
 
+def test_mounts_once_in_the_waypoint_town_and_stands_still_meanwhile(tmp_path: Path, clock: Clock) -> None:
+    import dataclasses
+
+    config = _config(tmp_path, form=FormConfig(enabled=True, mode="glow", glow_slots=(Region(0.4031, 0.9063, 0.0297, 0.0521),)))
+    world, _ = _maze()
+    vision = Vision(config)
+    brain = CombatBrain(config, rng=random.Random(8))
+    frame = _frame(world, np.array([800.0, 700.0]))
+    x, y, w, h = config.form.glow_slots[0].pixels(W, H)
+    frame[y : y + h, x : x + w] = (90, 92, 95)            # greyed out: town
+    log = []
+    for _ in range(80):                                   # 4s in town with a route
+        clock.now += 0.05
+        obs = dataclasses.replace(vision.observe(frame), route_map=object())
+        log.append(brain.decide(obs, True))
+    presses = [i for i, d in enumerate(log) if any(a.kind == "press" and a.key == "z" for a in d.actions)]
+    assert len(presses) == 1                              # a toggle: pressed exactly once
+    after = log[presses[0] + 1 : presses[0] + 25]         # the next ~1.2s
+    assert all(d.state == "MOUNT" and not d.actions for d in after)
+
+
 def test_hunt_walks_in_before_attacking(tmp_path: Path, clock: Clock) -> None:
     from d4bot.config import CombatConfig
 

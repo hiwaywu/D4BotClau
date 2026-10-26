@@ -60,6 +60,9 @@ class CombatBrain:
         self._stuck_since: float | None = None
         self._lost_focus = False
         self._focus_back_at: float | None = None
+        self._town_since: float | None = None
+        self._mounted_in_town = False
+        self._mount_until = 0.0
         self._init_nav()
         self._init_buff_gate()
         self._init_pulse()
@@ -165,6 +168,24 @@ class CombatBrain:
 
         actions: list[Action] = []
         notes: list[str] = []
+
+        # Ride out of the waypoint town like the recording (user rode Gea Kul;
+        # on foot the bot got stuck on its narrow streets). The mount key is a
+        # toggle, so it is pressed once per stay in town; attacking in the
+        # Helltide dismounts by itself.
+        if obs.in_town and obs.route_map is not None and self.config.input.mount_key:
+            if self._town_since is None:
+                self._town_since = now
+            elif not self._mounted_in_town and now - self._town_since >= 1.0:
+                # A move click during the summon would cancel it: stand still 1.5s.
+                self._mounted_in_town = True
+                self._mount_until = now + 1.5
+                return Decision(actions=[Action(kind="press", key=self.config.input.mount_key)], state="MOUNT", note="mounting")
+            if now < self._mount_until:
+                return Decision(state="MOUNT", note="mounting")
+        elif not obs.in_town:
+            self._town_since = None
+            self._mounted_in_town = False
 
         if self.config.input.potion_enabled:
             if self.config.input.potion_mode == "timer":
