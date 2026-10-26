@@ -309,8 +309,11 @@ class RouteLocator:
         # real Kyovashad fix scores 0.59 on its waypoint, while an unrecorded
         # Helltide matched it at 0.45-0.62 mid-farm (live path1), so the score
         # alone cannot tell them apart. Afterwards only local tracking runs.
+        # 0.5 -> 0.8 (2026-10-26): with the re-recorded routes every real
+        # landing scored 0.94-0.99, and the unrecorded Iron Wolves Encampment
+        # matched wejinhani at 0.59 (the bot then walked a route not there).
         self.acquire_window_s = 30.0
-        self.acquire_score = 0.5
+        self.acquire_score = 0.8
         self._born = time.monotonic()
 
     @property

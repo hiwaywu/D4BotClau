@@ -408,3 +408,5 @@ data/                     screenshots copied from the OneDrive folder (gitignore
 **15:16: `routes/geakul` recorded** (new town; minimap outside the Helltide is not red): 567 points, 1725 frames, 90s, 4275px, looped from point 207 (2615px circuit around the central ring area). After the modem/router + PC restart the internet stayed up 15:00-15:16 (`logs/net_watch.log`). Samuk still missing.
 
 **Idea (user, 15:16): map pin -> follow the game's red guide line on the minimap.** Not now: recorded routes already lead out of town and loop; the guide line is dark red like the Helltide areas; choosing a good pin spot changes every Helltide. Possible later as a **fallback for towns with no recording** (follow the line out of town, then roam) instead of stopping after 20s.
+
+**15:19 cycle:** stash OK -> teleport landed at the **Iron Wolves Encampment** waypoint (new town) -> the route locator accepted **wejinhani at 0.59** and walked a route that is not there (stuck 2, user F8 after 9s). Real landings today scored 0.94-0.99 -> `RouteLocator.acquire_score` **0.5 -> 0.8**. The first ironwolves recording was too tight (user) - being re-recorded.
