@@ -307,7 +307,9 @@ class Vision:
             return []
         # Stops before the quest tracker column on the right (white text on a
         # dark box, at x ~0.79) and above the HUD.
-        region = Region(0.10, 0.10, 0.68, 0.72)
+        # Top at 0.07: live 2026-10-26 a "Hunter's Knife" label sat at y 160
+        # (0.11), half cut off by the old 0.10 edge.
+        region = Region(0.10, 0.07, 0.68, 0.75)
         roi = self._crop(frame, region)
         fh, fw = frame.shape[:2]
         x0, y0, _, _ = region.pixels(fw, fh)
@@ -318,9 +320,28 @@ class Vision:
         scale = fh / 1440.0
         joined = cv2.morphologyEx(text, cv2.MORPH_CLOSE, np.ones((max(3, int(7 * scale)), max(9, int(17 * scale))), np.uint8))
         n, _, stats, _ = cv2.connectedComponentsWithStats(joined)
-        labels = []
+        boxes = []
         for i in range(1, n):
             x, y, w, h, _ = stats[i]
+            if h > 40 * scale and w >= 80 * scale:
+                # A rare/legendary drop's light beam touches its label and merges
+                # with it into one tall blob (live: "Hunter's Knife (Ancestral)",
+                # 351x97). Split it into bands of text rows; the label is one.
+                rows = (text[y : y + h, x : x + w] > 0).sum(axis=1)
+                dense = rows >= max(4, int(rows.max() * 0.15))
+                start = None
+                for r in range(h + 1):
+                    if r < h and dense[r]:
+                        start = r if start is None else start
+                    elif start is not None:
+                        cols = np.flatnonzero(text[y + start : y + r, x : x + w].any(axis=0))
+                        if cols.size and r - start >= 16 * scale:  # thinner bands: beam/glow, not text
+                            boxes.append((x + int(cols[0]), y + start, int(cols[-1] - cols[0] + 1), r - start))
+                        start = None
+            else:
+                boxes.append((x, y, w, h))
+        labels = []
+        for x, y, w, h in boxes:
             if not (80 * scale <= w <= 600 * scale and 14 * scale <= h <= 40 * scale and w >= 3.5 * h):
                 continue
             box_text = text[y : y + h, x : x + w] > 0

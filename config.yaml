@@ -86,7 +86,7 @@ combat:
   loot_enabled: true
   loot_range_px: 140
   loot_near_px: 35
-  loot_label_radius_px: 650  # screen px at 1440p (a real label sat 524px away)
+  loot_label_radius_px: 750  # screen px at 1440p (labels seen 524px and 675px away)
   loot_weight: 2.5
   loot_timeout_s: 5.0        # not picked up by then (inventory full, or a name plate/banner) -> ignore 120s
   star_threshold: 0.70       # star template: real stars 0.87-0.91, non-stars <= 0.45
