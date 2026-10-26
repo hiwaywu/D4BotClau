@@ -450,6 +450,24 @@ def test_missing_hud_pauses_then_counts_as_death(tmp_path: Path, clock: Clock) -
     assert not vision.observe(hud).dead
 
 
+def test_loading_art_mid_farm_is_loading_not_death(tmp_path: Path, clock: Clock) -> None:
+    root = Path(__file__).resolve().parents[1]
+    config = _config(root, mode="assist", death=DeathConfig(enabled=True, confirm_s=2.0))
+    emblem = cv2.imread(str(root / "templates" / "warplan" / "loading_emblem.png"))
+    assert emblem is not None
+    loading = np.full((H, W, 3), (40, 30, 90), dtype=np.uint8)
+    cv2.putText(loading, "Overpower is a stacking buff", (700, 1340), cv2.FONT_HERSHEY_SIMPLEX, 2, (220, 220, 220), 3)
+    loading[1260 : 1260 + emblem.shape[0], 2380 : 2380 + emblem.shape[1]] = emblem
+
+    vision = Vision(config)
+    brain = CombatBrain(config)
+    for _ in range(40):
+        clock.now += 0.1
+        obs = vision.observe(loading)
+        assert obs.black and not obs.screen.no_hud and not obs.dead
+        assert brain.decide(obs, True).state == "LOADING"
+
+
 def test_pulse_walks_fights_and_extends_on_kills(tmp_path: Path, clock: Clock) -> None:
     from d4bot.config import CombatConfig
 

@@ -602,6 +602,13 @@ class Vision:
         # fixed HUD art, so "label not found" = no HUD (death, menu, cutscene).
         hud_score = self.hud_score(frame)
         no_hud = not black and hud_score is not None and hud_score < self.config.death.hud_threshold
+        if no_hud:
+            # Live 2026-10-25: a loading screen with art (not black) mid-farm
+            # was read as "HUD gone 2s" and ended the cycle as a death.
+            from .warplan import is_loading
+
+            if is_loading(frame):
+                black, grey, no_hud = True, False, False
         template_score = None
         if self._death_template is not None:
             roi = self._crop(frame, Region(0.20, 0.20, 0.60, 0.70))
