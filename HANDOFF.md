@@ -396,3 +396,5 @@ data/                     screenshots copied from the OneDrive folder (gitignore
 - Botting violates Blizzard's terms; ban possible. Do not run unattended.
 - F8 stops input. Input only goes to the foreground D4 window.
 - Start outside town (town disables skills; the toggle backs off rather than spamming).
+
+**Auto-revive built (offline, 14:15):** `src/d4bot/revive.py`: `DeathScreen` (template `templates/death_banner.png` = "YOU HAVE DIED", 1.00 on the real death frame, <= 0.21 on 516 other captures) + `ReviveRunner` (click "Revive at Checkpoint" at (0.5, 0.884) every 2s - it stays greyed a few seconds - until loading is over and the HUD is back; 90s timeout; F8/focus stop). In `-Cycle`: a round ending with "HUD gone" on the death screen -> revive -> new round (town + stash + Warplan + route); max 5 deaths per cycle run. Tests `tests/test_revive.py`. Not yet seen live.

@@ -565,6 +565,23 @@ def _run_helltide_teleport(io: _RoutineIO, want_reason: bool = False):  # type: 
     return result if want_reason else result.ok
 
 
+def _run_revive(io: _RoutineIO):  # type: ignore[no-untyped-def]
+    from .revive import DeathScreen, ReviveRunner
+
+    vision = Vision(io.config)
+
+    def hud_visible(frame) -> bool:  # type: ignore[no-untyped-def]
+        score = vision.hud_score(frame)
+        return score is not None and score >= io.config.death.hud_threshold
+
+    runner = ReviveRunner(DeathScreen(io.config.project_root), hud_visible, grab=io.grab, send=io.send, stopped=io.stopped)
+    result = runner.run()
+    status = "OK" if result.ok else f"FAILED: {result.reason}"
+    log.info("Revive %s  clicks=%d", status, result.clicks)
+    print(f"Revive at checkpoint {status}")
+    return result
+
+
 def _routine_command(config_path: str, enable_input: bool, accept_risk: bool, steps, title: str) -> int:  # type: ignore[no-untyped-def]
     if not (enable_input and accept_risk):
         print("This routine sends input. Run with BOTH -EnableInput -IAcceptBanRisk.")
@@ -603,7 +620,11 @@ def cmd_cycle(
         print("The cycle sends input. Run with BOTH -EnableInput -IAcceptBanRisk.")
         return 2
     config = load_config(config_path)
+    from .revive import DeathScreen
+
     helltide = WarplanVision(config.project_root, WarplanConfig())
+    death_screen = DeathScreen(config.project_root)
+    deaths, max_deaths = 0, 5
     io = _RoutineIO(config, "CYCLE")
     print("Helltide cycle: town + stash -> teleport -> farm until it ends -> repeat. F8 stops.")
     started = time.monotonic()
@@ -745,7 +766,19 @@ def cmd_cycle(
                     return 1
                 reason = _farm(config, input_enabled=True, snapshot_dir=shots, end_check=end_check, loot_hold_s=8.0)
                 log.info("Cycle %d: farm ended: %s", cycles, reason)
-            if not (reason.startswith("Helltide ended") or reason.startswith("stash trip") or reason.startswith("idle reset")):
+            if reason.startswith("HUD gone") and death_screen.seen(io.grab()):
+                # Live 2026-10-26: first real death (Torment X). Revive at the
+                # checkpoint, then start the round over: town, teleport, route.
+                deaths += 1
+                log.info("Cycle %d: died (death %d of max %d); reviving at checkpoint", cycles, deaths, max_deaths)
+                if deaths > max_deaths:
+                    print(f"Cycle stopped: died {deaths} times (max {max_deaths}); too hard for the bot?")
+                    return 1
+                if not step(_run_revive).ok:
+                    print("Cycle stopped: could not revive")
+                    return 1
+                reason = "revived"
+            if not (reason.startswith("Helltide ended") or reason.startswith("stash trip") or reason.startswith("idle reset") or reason == "revived"):
                 print(f"Cycle stopped: {reason}")
                 return 0 if reason.startswith("F8") else 1
             if not wait(2.0):
