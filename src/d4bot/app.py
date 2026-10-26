@@ -847,7 +847,7 @@ def cmd_collect(config_path: str, name: str, every_s: float, max_minutes: float,
 def cmd_record(config_path: str, name: str, max_seconds: float | None) -> int:
     """Record a route: no input is sent. Walk the route yourself; F8 saves it."""
     from .minimap import walkable_mask
-    from .routes import RouteRecorder
+    from .routes import RouteRecorder, load_routes, same_zone_as
 
     config = load_config(config_path)
     if not name.replace("_", "").replace("-", "").isalnum():
@@ -896,7 +896,18 @@ def cmd_record(config_path: str, name: str, max_seconds: float | None) -> int:
     if recorder.frames < 20:
         print("Too little recorded (was the game focused?); nothing saved.")
         return 1
-    out = recorder.save(PACKAGE_ROOT / config.routes.folder, name)
+    routes_folder = PACKAGE_ROOT / config.routes.folder
+    patch = recorder.start_patch()
+    clash = same_zone_as(patch, load_routes(routes_folder), name) if patch is not None else None
+    if clash is not None:
+        out = recorder.save(PACKAGE_ROOT / "data" / "route_rejects", f"{name}_{time.strftime('%Y%m%d_%H%M%S')}")
+        print(
+            f"\nNOT saved as {name!r}: this walk started in the {clash[0]!r} area (map match {clash[1]:.2f})."
+            f"\nCheck the zone name top right, stand on the right waypoint and record again."
+            f"\n(The walk is kept in {out}, outside routes/.)"
+        )
+        return 1
+    out = recorder.save(routes_folder, name)
     print(f"\nSaved route to {out}  ({len(recorder.path)} points, {recorder.frames} frames)")
     print("Turn it on with routes: enabled: true in config.yaml.")
     return 0

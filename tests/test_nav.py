@@ -730,6 +730,30 @@ def _record_maze_route(folder: Path, points: list[tuple[float, float]], name: st
     recorder.save(folder, name)
 
 
+def test_recording_that_starts_in_another_routes_zone_is_caught(tmp_path: Path) -> None:
+    from d4bot.routes import RouteRecorder, load_routes, same_zone_as
+
+    _record_maze_route(tmp_path, [(320 + i * 4.0, 300.0) for i in range(120)], name="zone_a")
+    world, _ = _maze()
+    x, y, w, h = MINIMAP.pixels(W, H)
+
+    def start_of(world: np.ndarray, walk: list[tuple[float, float]]) -> np.ndarray:
+        recorder = RouteRecorder(NavConfig())
+        for p in walk:
+            recorder.add(_frame(world, np.array(p, dtype=np.float64))[y : y + h, x : x + w])
+        return recorder.start_patch()
+
+    routes = load_routes(tmp_path)
+    # Same waypoint, different walk, saved under another name -> it is zone_a.
+    same = start_of(world, [(320.0, 300 + i * 4.0) for i in range(60)])
+    assert same_zone_as(same, routes, "zone_b") == ("zone_a", pytest.approx(1.0, abs=0.15))
+    # Re-recording zone_a under its own name is fine.
+    assert same_zone_as(same, routes, "zone_a") is None
+    # A different zone (mirrored world) is not mistaken for zone_a.
+    other = np.ascontiguousarray(world[::-1, ::-1])
+    assert same_zone_as(start_of(other, [(1280.0, 1100 - i * 4.0) for i in range(60)]), routes, "zone_b") is None
+
+
 def test_route_recording_localizes_anywhere_on_it(tmp_path: Path) -> None:
     from d4bot.routes import RouteMap, terrain_gray
 

@@ -69,12 +69,14 @@ class RouteRecorder:
         self.corrections = 0
         self.frames = 0
         self._warned = False
+        self._first_shape: tuple[int, int] | None = None
 
     def add(self, crop: np.ndarray) -> None:
         gray = terrain_gray(crop, self.config)
         h, w = gray.shape
         if self._pos is None:
             self._pos = np.array([CANVAS / 2.0, CANVAS / 2.0])
+            self._first_shape = (h, w)
         else:
             # Predict from frame-to-frame motion, then correct against the mosaic.
             g = gray.astype(np.float32)
@@ -125,6 +127,14 @@ class RouteRecorder:
         self._sum[y : y + h, x : x + w] += gray
         self._count[y : y + h, x : x + w] += 1
 
+    def start_patch(self) -> np.ndarray | None:
+        """Mosaic square around the route start, inside the first minimap frame."""
+        if not self.path or self._first_shape is None:
+            return None
+        r = min(self._first_shape) // 2 - 10
+        x, y = (int(round(v)) for v in self.path[0])
+        return self._mosaic_patch(x - r, y - r, 2 * r, 2 * r)
+
     def save(self, folder: Path, name: str) -> Path:
         ys, xs = np.nonzero(self._count)
         if len(xs) == 0 or not self.path:
@@ -147,6 +157,25 @@ class RouteRecorder:
         }
         (out / "route.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
         return out
+
+
+def same_zone_as(
+    patch: np.ndarray, routes: list["RouteMap"], name: str, min_score: float = 0.8
+) -> tuple[str, float] | None:
+    """Another recorded route whose map contains this recording's start, if any.
+
+    Live 2026-10-25: a "foolsquarry" re-record was walked in Wejinhani (start
+    matched the wejinhani mosaic 0.98, the real Fool's Quarry 0.45) and
+    overwrote the good route.
+    """
+    best: tuple[str, float] | None = None
+    for route in routes:
+        if route.name == name:
+            continue
+        score, _ = _match(route.mosaic, patch)
+        if score >= min_score and (best is None or score > best[1]):
+            best = (route.name, score)
+    return best
 
 
 def find_loop_start(path: np.ndarray, radius: float = 40.0, min_points: int = 50) -> int | None:
