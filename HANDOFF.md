@@ -73,6 +73,8 @@ If it walks into walls more than before: set `nav: path_planning: false` in `con
 
 **Step 4 cycle 2, 2026-10-25 01:17:** kyovashad located (0.65) and followed (#17 -> #35), but each round ended after 21s with "Helltide ended (timer gone 20s)" - the Helltide timer is not shown in Kyovashad town (outside the Helltide; marowen's waypoint is inside it, so this never showed before). It also clicked NPC name plates in town as loot. Both fixed (3s). **User decision:** keep it simple - record **one long route per Helltide town** (waypoint -> open area -> a circuit back to where the circuit began; 5-6 towns), the bot follows it and fights on the way until the Helltide ends, then town + stash + Warplan again. Next: record those routes (Step 4b), starting with the town the Warplan sends you to now.
 
+**Step 4b, 2026-10-25 20:45 (D4BotClau-main PC):** the Helltide moved off Kyovashad; Warplan landed at the **Fool's Quarry** waypoint (inside the Helltide). Recorded `routes/foolsquarry`: 74 points, 703 frames, ~50s of walking, 510 minimap px, **one-way** (waypoint -> north, no loop; end 386px from start). Usable as is (bot roams freely after it); re-record with a closing circuit for the looped plan.
+
 ### Step 4 - Use the full cycle (as long as you like, watched)
 This is the normal way to run it. No minimum length - stop with F8 whenever.
 ```powershell
