@@ -43,6 +43,8 @@ git pull                         # brings in path planning, idle reset, YOLO pip
 ```
 Expect: `git pull` lists new files (`CLAUDE.md`, `src/d4bot/detector.py`, `tools/yolo_*.py`, ...) and setup ends with "Setup complete." If `git pull` complains about local changes, stop and look at them with the user.
 
+**2026-10-25 evening, another PC:** folder `C:\AI STUFF\Claude\D4BotClau-main` (zip download, turned into a git checkout of `main` by Claude: `git init` + remote + `reset origin/main`, files identical). `.\setup.cmd` OK (Python 3.13.15, shared venv in `%LOCALAPPDATA%\d4-visual-bot\venv`), `pytest` all pass, 15 skipped. Doctor sees 'Diablo IV' 2560x1440, routes 2 loaded. The user only plays D4; Claude runs every command.
+
 ### Step 2 - Doctor (1 min, no input sent)
 **DONE 2026-10-25 00:29:** window 'Diablo IV' 2560x1440, foreground True, HUD 0.99, minimap ok (1 pack, walkable 0.78), routes: 2 loaded (not located here), detector: off, glow -> HUMAN. No traceback. Skill templates missing = expected (glow mode + fallback cooldowns).
 
