@@ -221,7 +221,9 @@ class RouteMap:
         if mosaic is None or covered is None:
             raise ValueError(f"route {folder} is missing mosaic.png/covered.png")
         path = np.array(meta["path"], dtype=np.float64)
-        loop_from = find_loop_start(path)
+        # "loop_from" in route.json sets the circuit start by hand, for a
+        # recording that ended a bit too far from where its circuit began.
+        loop_from = int(meta["loop_from"]) if "loop_from" in meta else find_loop_start(path)
         return cls(
             name=str(meta.get("name", folder.name)),
             mosaic=mosaic,
