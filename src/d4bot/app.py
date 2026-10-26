@@ -263,6 +263,7 @@ def _farm(
     timer_start: float | None = None
     last_stats = started
     last_state = ""
+    last_in_town: bool | None = None
     death_saved = False
     exit_reason = "stopped"
     last_end_check = 0.0
@@ -309,6 +310,11 @@ def _farm(
                 potions += 1
             moves += sum(1 for action in decision.actions if action.kind == "click")
             frames += 1
+
+            if not (obs.black or obs.screen.no_hud) and obs.in_town != last_in_town:
+                if last_in_town is not None or obs.in_town:
+                    log.info("%s after %.0fs", "In town (skills greyed out)" if obs.in_town else "Left town", time.monotonic() - started)
+                last_in_town = obs.in_town
 
             # FIGHT/TRACK alternate between right-clicks; log them as one state.
             shown_state = "FIGHT" if decision.state == "TRACK" else decision.state

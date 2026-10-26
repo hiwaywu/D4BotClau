@@ -89,6 +89,7 @@ class Observation:
     route: RouteFix = field(default_factory=lambda: RouteFix(False))
     route_map: RouteMap | None = None
     detections: list[Detection] = field(default_factory=list)  # YOLO (detector.enabled), else empty
+    in_town: bool = False      # skill icons greyed out: skills are disabled in towns
 
     @property
     def black(self) -> bool:
@@ -276,7 +277,24 @@ class Vision:
             route=route,
             route_map=self._routes.active if self._routes is not None else None,
             detections=detections,
+            in_town=not screen.black and not screen.no_hud and self.skills_greyed(frame),
         )
+
+    def skills_greyed(self, frame: np.ndarray) -> bool:
+        """Town: D4 greys out every skill icon (user tip, 2026-10-26).
+
+        Mean saturation of the inner 60% of the slot 1-4 icons (the frame ring,
+        which burns in demon form, is left out): town 3-11 on every capture,
+        out in the Helltide 101-157.
+        """
+        values = []
+        h, w = frame.shape[:2]
+        for slot in self.config.form.glow_slots:
+            x, y, sw, sh = slot.pixels(w, h)
+            icon = frame[y + sh // 5 : y + sh * 4 // 5, x + sw // 5 : x + sw * 4 // 5]
+            if icon.size:
+                values.append(float(cv2.cvtColor(icon, cv2.COLOR_BGR2HSV)[:, :, 1].mean()))
+        return bool(values) and float(np.median(values)) < 40.0
 
     def _loot_labels(self, frame: np.ndarray) -> list[tuple[int, int, int, int]]:
         """Orange/gold item-name labels: text strokes on a dark label box.

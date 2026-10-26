@@ -348,6 +348,8 @@ class CombatBrain:
         self._toggle_state = "human"
 
         if form.act_while_human:
+            if obs.in_town:
+                return None  # skills are disabled in towns; 2 would do nothing
             # Soak run 10: demon drops on its own in quiet areas and slot 2
             # comes back well before 11s. Pressing 2 on cooldown does nothing,
             # and the glow check (any burning frame = demon) has been right on
@@ -490,7 +492,7 @@ class CombatBrain:
         # NPC name plates (live cycle 2, Kyovashad): no loot clicks until the
         # first pack is fought (towns have no monsters). Also works for a
         # looped route, which is never "done".
-        in_town = obs.route_map is not None and self.packs_engaged == 0
+        in_town = obs.in_town or (obs.route_map is not None and self.packs_engaged == 0)
         if self._hunt_target is None and combat.loot_enabled and not in_town:
             loot = self._loot(obs, now, actions, notes)
             if loot is not None:

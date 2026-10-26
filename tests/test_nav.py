@@ -701,6 +701,33 @@ def test_human_form_keeps_hunting_and_retries_toggle(tmp_path: Path, clock: Cloc
     assert attacks > 10                                   # still fighting while human
 
 
+def test_greyed_skill_icons_mean_town_and_no_toggle_presses(tmp_path: Path, clock: Clock) -> None:
+    config = _config(
+        tmp_path,
+        form=FormConfig(
+            enabled=True, mode="glow", act_while_human=True, retry_interval_s=2.0,
+            fallback_cooldown_s=1.0, confirm_frames=1, buff_off_confirm_s=0.0,
+            glow_slots=(Region(0.4031, 0.9063, 0.0297, 0.0521),),
+        ),
+    )
+    world, _ = _maze()
+    vision = Vision(config)
+    frame = _frame(world, np.array([800.0, 700.0]))
+    x, y, w, h = config.form.glow_slots[0].pixels(W, H)
+    frame[y : y + h, x : x + w] = (40, 120, 200)          # coloured icon: out in the Helltide
+    assert not vision.observe(frame).in_town
+    frame[y : y + h, x : x + w] = (90, 92, 95)            # greyed out: town
+    assert vision.observe(frame).in_town
+
+    brain = CombatBrain(config, rng=random.Random(8))
+    presses = 0
+    for _ in range(100):                                  # 5s human, in town
+        clock.now += 0.05
+        decision = brain.decide(vision.observe(frame), True)
+        presses += sum(1 for a in decision.actions if a.kind == "press" and a.key == "2")
+    assert presses == 0
+
+
 def test_hunt_walks_in_before_attacking(tmp_path: Path, clock: Clock) -> None:
     from d4bot.config import CombatConfig
 
