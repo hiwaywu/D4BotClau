@@ -314,41 +314,47 @@ class Vision:
         fh, fw = frame.shape[:2]
         x0, y0, _, _ = region.pixels(fw, fh)
         hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
-        text = np.zeros(hsv.shape[:2], dtype=np.uint8)
-        for low, high in combat.label_hsv:
-            text |= cv2.inRange(hsv, np.array(low, dtype=np.uint8), np.array(high, dtype=np.uint8))
         scale = fh / 1440.0
-        joined = cv2.morphologyEx(text, cv2.MORPH_CLOSE, np.ones((max(3, int(7 * scale)), max(9, int(17 * scale))), np.uint8))
-        n, _, stats, _ = cv2.connectedComponentsWithStats(joined)
-        boxes = []
-        for i in range(1, n):
-            x, y, w, h, _ = stats[i]
-            if h > 40 * scale and w >= 80 * scale:
-                # A rare/legendary drop's light beam touches its label and merges
-                # with it into one tall blob (live: "Hunter's Knife (Ancestral)",
-                # 351x97). Split it into bands of text rows; the label is one.
-                rows = (text[y : y + h, x : x + w] > 0).sum(axis=1)
-                dense = rows >= max(4, int(rows.max() * 0.15))
-                start = None
-                for r in range(h + 1):
-                    if r < h and dense[r]:
-                        start = r if start is None else start
-                    elif start is not None:
-                        cols = np.flatnonzero(text[y + start : y + r, x : x + w].any(axis=0))
-                        if cols.size and r - start >= 16 * scale:  # thinner bands: beam/glow, not text
-                            boxes.append((x + int(cols[0]), y + start, int(cols[-1] - cols[0] + 1), r - start))
-                        start = None
-            else:
-                boxes.append((x, y, w, h))
+
+        def text_mask(ranges: list[HsvRange]) -> np.ndarray:
+            mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
+            for low, high in ranges:
+                mask |= cv2.inRange(hsv, np.array(low, dtype=np.uint8), np.array(high, dtype=np.uint8))
+            return mask
+
+        def candidates(text: np.ndarray) -> list[tuple[int, int, int, int]]:
+            joined = cv2.morphologyEx(text, cv2.MORPH_CLOSE, np.ones((max(3, int(7 * scale)), max(9, int(17 * scale))), np.uint8))
+            n, _, stats, _ = cv2.connectedComponentsWithStats(joined)
+            boxes = []
+            for i in range(1, n):
+                x, y, w, h, _ = stats[i]
+                if h > 40 * scale and w >= 80 * scale:
+                    # A rare/legendary drop's light beam touches its label and merges
+                    # with it into one tall blob (live: "Hunter's Knife (Ancestral)",
+                    # 351x97). Split it into bands of text rows; the label is one.
+                    rows = (text[y : y + h, x : x + w] > 0).sum(axis=1)
+                    dense = rows >= max(4, int(rows.max() * 0.15))
+                    start = None
+                    for r in range(h + 1):
+                        if r < h and dense[r]:
+                            start = r if start is None else start
+                        elif start is not None:
+                            cols = np.flatnonzero(text[y + start : y + r, x : x + w].any(axis=0))
+                            if cols.size and r - start >= 16 * scale:  # thinner bands: beam/glow, not text
+                                boxes.append((x + int(cols[0]), y + start, int(cols[-1] - cols[0] + 1), r - start))
+                            start = None
+                else:
+                    boxes.append((x, y, w, h))
+            return [
+                (x, y, w, h) for x, y, w, h in boxes
+                if 80 * scale <= w <= 600 * scale and 14 * scale <= h <= 40 * scale and w >= 3.5 * h
+                and 0.12 <= float((text[y : y + h, x : x + w] > 0).mean()) <= 0.6
+            ]
+
         labels = []
-        for x, y, w, h in boxes:
-            if not (80 * scale <= w <= 600 * scale and 14 * scale <= h <= 40 * scale and w >= 3.5 * h):
-                continue
-            box_text = text[y : y + h, x : x + w] > 0
-            fill = float(box_text.mean())
-            if not 0.12 <= fill <= 0.6:
-                continue
-            background = hsv[y : y + h, x : x + w, 2][~box_text]
+        text = text_mask(combat.label_hsv)
+        for x, y, w, h in candidates(text):
+            background = hsv[y : y + h, x : x + w, 2][~(text[y : y + h, x : x + w] > 0)]
             if background.size == 0 or float(np.median(background)) > 120:
                 continue  # bright surroundings: fire, not a label
             cx, cy = x0 + x + w / 2.0, y0 + y + h / 2.0
@@ -358,6 +364,15 @@ class Vision:
                 # (live path1: clicked as loot 8x). Item labels were 20-35px.
                 continue
             labels.append((x0 + int(x), y0 + int(y), int(w), int(h)))
+        if combat.label_unique_hsv:
+            # The user's loot filter colours wanted gear bright green, a colour
+            # with 0 pixels in 197 farm frames: no "bright = fire" rule needed,
+            # so these are found on sand, next to beams and in fights too
+            # (town test 2026-10-26: the rule above found 1 of 14 drops).
+            for x, y, w, h in candidates(text_mask(combat.label_unique_hsv)):
+                box = (x0 + int(x), y0 + int(y), int(w), int(h))
+                if not any(abs(box[0] - o[0]) < 20 * scale and abs(box[1] - o[1]) < 15 * scale for o in labels):
+                    labels.append(box)
         return labels
 
     def _kill_signal(self, frame: np.ndarray) -> bool:

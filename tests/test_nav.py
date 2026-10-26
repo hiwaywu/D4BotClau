@@ -633,6 +633,23 @@ def test_red_label_is_loot_and_zone_banner_is_not(tmp_path: Path, clock: Clock) 
     assert not any(abs(y + h / 2 - 799) < 10 for _, y, _, h in labels)
 
 
+def test_green_filter_label_is_found_on_bright_ground(tmp_path: Path, clock: Clock) -> None:
+    from d4bot.config import CombatConfig
+
+    config = _config(tmp_path, combat=CombatConfig(mode="hunt"))
+    world, _ = _maze()
+    frame = _frame(world, np.array([800.0, 700.0]))
+    # Bright sand (town test: the "> 120 = fire" rule dropped labels there).
+    cv2.rectangle(frame, (800, 300), (1700, 560), (150, 175, 190), -1)
+    cv2.rectangle(frame, (892, 342), (1220, 378), (110, 125, 135), -1)   # see-through label box
+    cv2.putText(frame, "Moloch's Flame", (900, 370), cv2.FONT_HERSHEY_TRIPLEX, 0.85, (60, 240, 70), 2, cv2.LINE_AA)
+    cv2.rectangle(frame, (1292, 442), (1620, 478), (110, 125, 135), -1)
+    cv2.putText(frame, "Moloch's Flame", (1300, 470), cv2.FONT_HERSHEY_TRIPLEX, 0.85, (230, 230, 230), 2, cv2.LINE_AA)
+    labels = Vision(config).observe(frame).loot_labels
+    assert any(abs(x - 900) < 25 and abs(y - 350) < 20 for x, y, _, _ in labels)       # green: trusted
+    assert not any(abs(x - 1300) < 25 and abs(y - 450) < 20 for x, y, _, _ in labels)  # white on bright: not
+
+
 def test_star_is_loot_not_a_monster_pack(tmp_path: Path, clock: Clock) -> None:
     from d4bot.config import CombatConfig
 

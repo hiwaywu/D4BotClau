@@ -196,6 +196,9 @@ class CombatConfig:
         ((0, 150, 170), (5, 255, 255)),     # red (live: "Amulet" missed; 0 false labels in 132 fight frames)
         ((174, 150, 170), (180, 255, 255)),
     ])
+    # Colour the loot filter gives wanted gear; never seen in the game world,
+    # so labels in it are trusted anywhere (bright green, like "Set Charm").
+    label_unique_hsv: list[HsvRange] = field(default_factory=lambda: [((45, 150, 200), (66, 255, 255))])
     loot_label_radius_px: int = 650   # click labels within this screen distance (1440p); real label was 524px away
     aim_min_px: int = 120
     aim_max_px: int = 420
@@ -710,6 +713,7 @@ def load_config(config_path: str | Path) -> BotConfig:
         ((0, 150, 170), (5, 255, 255)),     # red (live: "Amulet" missed; 0 false labels in 132 fight frames)
         ((174, 150, 170), (180, 255, 255)),
     ]),
+        label_unique_hsv=_as_hsv_ranges(combat_raw.get("label_unique_hsv"), [((45, 150, 200), (66, 255, 255))]),
         loot_label_radius_px=int(combat_raw.get("loot_label_radius_px", 650)),
         aim_min_px=int(combat_raw.get("aim_min_px", 120)),
         aim_max_px=int(combat_raw.get("aim_max_px", 420)),
